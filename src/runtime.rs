@@ -1,9 +1,34 @@
 /// Callback functions passed to WrenVM.
-use crate::bindings;
+use crate::bindings::{self};
 use std::{
+    alloc::{alloc_zeroed, dealloc, realloc, Layout},
     ffi::CStr,
-    os::raw::{c_char, c_int},
+    os::raw::{c_char, c_int, c_void},
+    ptr,
 };
+
+pub extern "C" fn wren_reallocate(memory: *mut c_void, new_size: usize) -> *mut c_void {
+    unsafe {
+        if memory.is_null() {
+            // Allocate
+            alloc_zeroed(Layout::from_size_align(new_size as usize, 8).unwrap()) as *mut _
+        } else {
+            // Existing memory
+            if new_size == 0 {
+                // Deallocate
+                dealloc(memory as *mut _, Layout::from_size_align(0, 8).unwrap());
+                ptr::null_mut()
+            } else {
+                // Reallocate
+                realloc(
+                    memory as *mut _,
+                    Layout::from_size_align(new_size as usize, 8).unwrap(),
+                    new_size as usize,
+                ) as *mut _
+            }
+        }
+    }
+}
 
 /// Print function backing `System.print()`.
 #[no_mangle]

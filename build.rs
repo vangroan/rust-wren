@@ -1,11 +1,7 @@
 extern crate bindgen;
 
 use std::io::{self, Write};
-use std::{
-    env,
-    path::PathBuf,
-    process::{Command, ExitStatus},
-};
+use std::{env, path::PathBuf, process::Command};
 
 fn build_win64() {
     println!("Building Wren");
@@ -45,6 +41,9 @@ fn generate_bindings() {
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        // On most platforms size_t and usize are the same.
+        // Otherwise generated bindings would be either x86 or x64 specific.
+        .size_t_is_usize(true)
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.
