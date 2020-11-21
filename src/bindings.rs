@@ -91,7 +91,6 @@ pub type va_list = *mut ::std::os::raw::c_char;
 extern "C" {
     pub fn __va_start(arg1: *mut *mut ::std::os::raw::c_char, ...);
 }
-pub type size_t = ::std::os::raw::c_ulonglong;
 pub type __vcrt_bool = bool;
 pub type wchar_t = ::std::os::raw::c_ushort;
 extern "C" {
@@ -277,9 +276,9 @@ fn bindgen_test_layout__Mbstatet() {
 }
 pub type mbstate_t = _Mbstatet;
 pub type time_t = __time64_t;
-pub type rsize_t = size_t;
+pub type rsize_t = usize;
 extern "C" {
-    pub fn _calloc_base(_Count: size_t, _Size: size_t) -> *mut ::std::os::raw::c_void;
+    pub fn _calloc_base(_Count: usize, _Size: usize) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
     pub fn calloc(
@@ -288,12 +287,12 @@ extern "C" {
     ) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    pub fn _callnewh(_Size: size_t) -> ::std::os::raw::c_int;
+    pub fn _callnewh(_Size: usize) -> ::std::os::raw::c_int;
 }
 extern "C" {
     pub fn _expand(
         _Block: *mut ::std::os::raw::c_void,
-        _Size: size_t,
+        _Size: usize,
     ) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
@@ -303,21 +302,21 @@ extern "C" {
     pub fn free(_Block: *mut ::std::os::raw::c_void);
 }
 extern "C" {
-    pub fn _malloc_base(_Size: size_t) -> *mut ::std::os::raw::c_void;
+    pub fn _malloc_base(_Size: usize) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
     pub fn malloc(_Size: ::std::os::raw::c_ulonglong) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    pub fn _msize_base(_Block: *mut ::std::os::raw::c_void) -> size_t;
+    pub fn _msize_base(_Block: *mut ::std::os::raw::c_void) -> usize;
 }
 extern "C" {
-    pub fn _msize(_Block: *mut ::std::os::raw::c_void) -> size_t;
+    pub fn _msize(_Block: *mut ::std::os::raw::c_void) -> usize;
 }
 extern "C" {
     pub fn _realloc_base(
         _Block: *mut ::std::os::raw::c_void,
-        _Size: size_t,
+        _Size: usize,
     ) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
@@ -329,67 +328,67 @@ extern "C" {
 extern "C" {
     pub fn _recalloc_base(
         _Block: *mut ::std::os::raw::c_void,
-        _Count: size_t,
-        _Size: size_t,
+        _Count: usize,
+        _Size: usize,
     ) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
     pub fn _recalloc(
         _Block: *mut ::std::os::raw::c_void,
-        _Count: size_t,
-        _Size: size_t,
+        _Count: usize,
+        _Size: usize,
     ) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
     pub fn _aligned_free(_Block: *mut ::std::os::raw::c_void);
 }
 extern "C" {
-    pub fn _aligned_malloc(_Size: size_t, _Alignment: size_t) -> *mut ::std::os::raw::c_void;
+    pub fn _aligned_malloc(_Size: usize, _Alignment: usize) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
     pub fn _aligned_offset_malloc(
-        _Size: size_t,
-        _Alignment: size_t,
-        _Offset: size_t,
+        _Size: usize,
+        _Alignment: usize,
+        _Offset: usize,
     ) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
     pub fn _aligned_msize(
         _Block: *mut ::std::os::raw::c_void,
-        _Alignment: size_t,
-        _Offset: size_t,
-    ) -> size_t;
+        _Alignment: usize,
+        _Offset: usize,
+    ) -> usize;
 }
 extern "C" {
     pub fn _aligned_offset_realloc(
         _Block: *mut ::std::os::raw::c_void,
-        _Size: size_t,
-        _Alignment: size_t,
-        _Offset: size_t,
+        _Size: usize,
+        _Alignment: usize,
+        _Offset: usize,
     ) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
     pub fn _aligned_offset_recalloc(
         _Block: *mut ::std::os::raw::c_void,
-        _Count: size_t,
-        _Size: size_t,
-        _Alignment: size_t,
-        _Offset: size_t,
+        _Count: usize,
+        _Size: usize,
+        _Alignment: usize,
+        _Offset: usize,
     ) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
     pub fn _aligned_realloc(
         _Block: *mut ::std::os::raw::c_void,
-        _Size: size_t,
-        _Alignment: size_t,
+        _Size: usize,
+        _Alignment: usize,
     ) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
     pub fn _aligned_recalloc(
         _Block: *mut ::std::os::raw::c_void,
-        _Count: size_t,
-        _Size: size_t,
-        _Alignment: size_t,
+        _Count: usize,
+        _Size: usize,
+        _Alignment: usize,
     ) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
@@ -443,16 +442,16 @@ extern "C" {
     pub fn bsearch(
         _Key: *const ::std::os::raw::c_void,
         _Base: *const ::std::os::raw::c_void,
-        _NumOfElements: size_t,
-        _SizeOfElements: size_t,
+        _NumOfElements: usize,
+        _SizeOfElements: usize,
         _CompareFunction: _CoreCrtNonSecureSearchSortCompareFunction,
     ) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
     pub fn qsort(
         _Base: *mut ::std::os::raw::c_void,
-        _NumOfElements: size_t,
-        _SizeOfElements: size_t,
+        _NumOfElements: usize,
+        _SizeOfElements: usize,
         _CompareFunction: _CoreCrtNonSecureSearchSortCompareFunction,
     );
 }
@@ -461,7 +460,7 @@ extern "C" {
         _Key: *const ::std::os::raw::c_void,
         _Base: *const ::std::os::raw::c_void,
         _NumOfElements: *mut ::std::os::raw::c_uint,
-        _SizeOfElements: size_t,
+        _SizeOfElements: usize,
         _CompareFunction: _CoreCrtSecureSearchSortCompareFunction,
         _Context: *mut ::std::os::raw::c_void,
     ) -> *mut ::std::os::raw::c_void;
@@ -480,7 +479,7 @@ extern "C" {
         _Key: *const ::std::os::raw::c_void,
         _Base: *mut ::std::os::raw::c_void,
         _NumOfElements: *mut ::std::os::raw::c_uint,
-        _SizeOfElements: size_t,
+        _SizeOfElements: usize,
         _CompareFunction: _CoreCrtSecureSearchSortCompareFunction,
         _Context: *mut ::std::os::raw::c_void,
     ) -> *mut ::std::os::raw::c_void;
@@ -516,7 +515,7 @@ extern "C" {
     pub fn _itow_s(
         _Value: ::std::os::raw::c_int,
         _Buffer: *mut wchar_t,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Radix: ::std::os::raw::c_int,
     ) -> errno_t;
 }
@@ -531,7 +530,7 @@ extern "C" {
     pub fn _ltow_s(
         _Value: ::std::os::raw::c_long,
         _Buffer: *mut wchar_t,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Radix: ::std::os::raw::c_int,
     ) -> errno_t;
 }
@@ -546,7 +545,7 @@ extern "C" {
     pub fn _ultow_s(
         _Value: ::std::os::raw::c_ulong,
         _Buffer: *mut wchar_t,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Radix: ::std::os::raw::c_int,
     ) -> errno_t;
 }
@@ -675,7 +674,7 @@ extern "C" {
     pub fn _i64tow_s(
         _Value: ::std::os::raw::c_longlong,
         _Buffer: *mut wchar_t,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Radix: ::std::os::raw::c_int,
     ) -> errno_t;
 }
@@ -690,7 +689,7 @@ extern "C" {
     pub fn _ui64tow_s(
         _Value: ::std::os::raw::c_ulonglong,
         _Buffer: *mut wchar_t,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Radix: ::std::os::raw::c_int,
     ) -> errno_t;
 }
@@ -741,13 +740,13 @@ extern "C" {
     pub fn _wfullpath(
         _Buffer: *mut wchar_t,
         _Path: *const wchar_t,
-        _BufferCount: size_t,
+        _BufferCount: usize,
     ) -> *mut wchar_t;
 }
 extern "C" {
     pub fn _wmakepath_s(
         _Buffer: *mut wchar_t,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Drive: *const wchar_t,
         _Dir: *const wchar_t,
         _Filename: *const wchar_t,
@@ -779,19 +778,19 @@ extern "C" {
     pub fn _wsplitpath_s(
         _FullPath: *const wchar_t,
         _Drive: *mut wchar_t,
-        _DriveCount: size_t,
+        _DriveCount: usize,
         _Dir: *mut wchar_t,
-        _DirCount: size_t,
+        _DirCount: usize,
         _Filename: *mut wchar_t,
-        _FilenameCount: size_t,
+        _FilenameCount: usize,
         _Ext: *mut wchar_t,
-        _ExtCount: size_t,
+        _ExtCount: usize,
     ) -> errno_t;
 }
 extern "C" {
     pub fn _wdupenv_s(
         _Buffer: *mut *mut wchar_t,
-        _BufferCount: *mut size_t,
+        _BufferCount: *mut usize,
         _VarName: *const wchar_t,
     ) -> errno_t;
 }
@@ -800,9 +799,9 @@ extern "C" {
 }
 extern "C" {
     pub fn _wgetenv_s(
-        _RequiredCount: *mut size_t,
+        _RequiredCount: *mut usize,
         _Buffer: *mut wchar_t,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _VarName: *const wchar_t,
     ) -> errno_t;
 }
@@ -817,7 +816,7 @@ extern "C" {
         _Filename: *const wchar_t,
         _VarName: *const wchar_t,
         _Buffer: *mut wchar_t,
-        _BufferCount: size_t,
+        _BufferCount: usize,
     ) -> errno_t;
 }
 extern "C" {
@@ -1494,7 +1493,7 @@ extern "C" {
     pub fn _itoa_s(
         _Value: ::std::os::raw::c_int,
         _Buffer: *mut ::std::os::raw::c_char,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Radix: ::std::os::raw::c_int,
     ) -> errno_t;
 }
@@ -1509,7 +1508,7 @@ extern "C" {
     pub fn _ltoa_s(
         _Value: ::std::os::raw::c_long,
         _Buffer: *mut ::std::os::raw::c_char,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Radix: ::std::os::raw::c_int,
     ) -> errno_t;
 }
@@ -1524,7 +1523,7 @@ extern "C" {
     pub fn _ultoa_s(
         _Value: ::std::os::raw::c_ulong,
         _Buffer: *mut ::std::os::raw::c_char,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Radix: ::std::os::raw::c_int,
     ) -> errno_t;
 }
@@ -1539,7 +1538,7 @@ extern "C" {
     pub fn _i64toa_s(
         _Value: ::std::os::raw::c_longlong,
         _Buffer: *mut ::std::os::raw::c_char,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Radix: ::std::os::raw::c_int,
     ) -> errno_t;
 }
@@ -1554,7 +1553,7 @@ extern "C" {
     pub fn _ui64toa_s(
         _Value: ::std::os::raw::c_ulonglong,
         _Buffer: *mut ::std::os::raw::c_char,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Radix: ::std::os::raw::c_int,
     ) -> errno_t;
 }
@@ -1568,7 +1567,7 @@ extern "C" {
 extern "C" {
     pub fn _ecvt_s(
         _Buffer: *mut ::std::os::raw::c_char,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Value: f64,
         _DigitCount: ::std::os::raw::c_int,
         _PtDec: *mut ::std::os::raw::c_int,
@@ -1586,7 +1585,7 @@ extern "C" {
 extern "C" {
     pub fn _fcvt_s(
         _Buffer: *mut ::std::os::raw::c_char,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Value: f64,
         _FractionalDigitCount: ::std::os::raw::c_int,
         _PtDec: *mut ::std::os::raw::c_int,
@@ -1604,7 +1603,7 @@ extern "C" {
 extern "C" {
     pub fn _gcvt_s(
         _Buffer: *mut ::std::os::raw::c_char,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Value: f64,
         _DigitCount: ::std::os::raw::c_int,
     ) -> errno_t;
@@ -1623,69 +1622,69 @@ extern "C" {
     pub fn ___mb_cur_max_l_func(_Locale: _locale_t) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    pub fn mblen(_Ch: *const ::std::os::raw::c_char, _MaxCount: size_t) -> ::std::os::raw::c_int;
+    pub fn mblen(_Ch: *const ::std::os::raw::c_char, _MaxCount: usize) -> ::std::os::raw::c_int;
 }
 extern "C" {
     pub fn _mblen_l(
         _Ch: *const ::std::os::raw::c_char,
-        _MaxCount: size_t,
+        _MaxCount: usize,
         _Locale: _locale_t,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    pub fn _mbstrlen(_String: *const ::std::os::raw::c_char) -> size_t;
+    pub fn _mbstrlen(_String: *const ::std::os::raw::c_char) -> usize;
 }
 extern "C" {
-    pub fn _mbstrlen_l(_String: *const ::std::os::raw::c_char, _Locale: _locale_t) -> size_t;
+    pub fn _mbstrlen_l(_String: *const ::std::os::raw::c_char, _Locale: _locale_t) -> usize;
 }
 extern "C" {
-    pub fn _mbstrnlen(_String: *const ::std::os::raw::c_char, _MaxCount: size_t) -> size_t;
+    pub fn _mbstrnlen(_String: *const ::std::os::raw::c_char, _MaxCount: usize) -> usize;
 }
 extern "C" {
     pub fn _mbstrnlen_l(
         _String: *const ::std::os::raw::c_char,
-        _MaxCount: size_t,
+        _MaxCount: usize,
         _Locale: _locale_t,
-    ) -> size_t;
+    ) -> usize;
 }
 extern "C" {
     pub fn mbtowc(
         _DstCh: *mut wchar_t,
         _SrcCh: *const ::std::os::raw::c_char,
-        _SrcSizeInBytes: size_t,
+        _SrcSizeInBytes: usize,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
     pub fn _mbtowc_l(
         _DstCh: *mut wchar_t,
         _SrcCh: *const ::std::os::raw::c_char,
-        _SrcSizeInBytes: size_t,
+        _SrcSizeInBytes: usize,
         _Locale: _locale_t,
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
     pub fn mbstowcs_s(
-        _PtNumOfCharConverted: *mut size_t,
+        _PtNumOfCharConverted: *mut usize,
         _DstBuf: *mut wchar_t,
-        _SizeInWords: size_t,
+        _SizeInWords: usize,
         _SrcBuf: *const ::std::os::raw::c_char,
-        _MaxCount: size_t,
+        _MaxCount: usize,
     ) -> errno_t;
 }
 extern "C" {
     pub fn mbstowcs(
         _Dest: *mut wchar_t,
         _Source: *const ::std::os::raw::c_char,
-        _MaxCount: size_t,
-    ) -> size_t;
+        _MaxCount: usize,
+    ) -> usize;
 }
 extern "C" {
     pub fn _mbstowcs_s_l(
-        _PtNumOfCharConverted: *mut size_t,
+        _PtNumOfCharConverted: *mut usize,
         _DstBuf: *mut wchar_t,
-        _SizeInWords: size_t,
+        _SizeInWords: usize,
         _SrcBuf: *const ::std::os::raw::c_char,
-        _MaxCount: size_t,
+        _MaxCount: usize,
         _Locale: _locale_t,
     ) -> errno_t;
 }
@@ -1693,9 +1692,9 @@ extern "C" {
     pub fn _mbstowcs_l(
         _Dest: *mut wchar_t,
         _Source: *const ::std::os::raw::c_char,
-        _MaxCount: size_t,
+        _MaxCount: usize,
         _Locale: _locale_t,
-    ) -> size_t;
+    ) -> usize;
 }
 extern "C" {
     pub fn wctomb(_MbCh: *mut ::std::os::raw::c_char, _WCh: wchar_t) -> ::std::os::raw::c_int;
@@ -1719,34 +1718,34 @@ extern "C" {
     pub fn _wctomb_s_l(
         _SizeConverted: *mut ::std::os::raw::c_int,
         _MbCh: *mut ::std::os::raw::c_char,
-        _SizeInBytes: size_t,
+        _SizeInBytes: usize,
         _WCh: wchar_t,
         _Locale: _locale_t,
     ) -> errno_t;
 }
 extern "C" {
     pub fn wcstombs_s(
-        _PtNumOfCharConverted: *mut size_t,
+        _PtNumOfCharConverted: *mut usize,
         _Dst: *mut ::std::os::raw::c_char,
-        _DstSizeInBytes: size_t,
+        _DstSizeInBytes: usize,
         _Src: *const wchar_t,
-        _MaxCountInBytes: size_t,
+        _MaxCountInBytes: usize,
     ) -> errno_t;
 }
 extern "C" {
     pub fn wcstombs(
         _Dest: *mut ::std::os::raw::c_char,
         _Source: *const wchar_t,
-        _MaxCount: size_t,
-    ) -> size_t;
+        _MaxCount: usize,
+    ) -> usize;
 }
 extern "C" {
     pub fn _wcstombs_s_l(
-        _PtNumOfCharConverted: *mut size_t,
+        _PtNumOfCharConverted: *mut usize,
         _Dst: *mut ::std::os::raw::c_char,
-        _DstSizeInBytes: size_t,
+        _DstSizeInBytes: usize,
         _Src: *const wchar_t,
-        _MaxCountInBytes: size_t,
+        _MaxCountInBytes: usize,
         _Locale: _locale_t,
     ) -> errno_t;
 }
@@ -1754,21 +1753,21 @@ extern "C" {
     pub fn _wcstombs_l(
         _Dest: *mut ::std::os::raw::c_char,
         _Source: *const wchar_t,
-        _MaxCount: size_t,
+        _MaxCount: usize,
         _Locale: _locale_t,
-    ) -> size_t;
+    ) -> usize;
 }
 extern "C" {
     pub fn _fullpath(
         _Buffer: *mut ::std::os::raw::c_char,
         _Path: *const ::std::os::raw::c_char,
-        _BufferCount: size_t,
+        _BufferCount: usize,
     ) -> *mut ::std::os::raw::c_char;
 }
 extern "C" {
     pub fn _makepath_s(
         _Buffer: *mut ::std::os::raw::c_char,
-        _BufferCount: size_t,
+        _BufferCount: usize,
         _Drive: *const ::std::os::raw::c_char,
         _Dir: *const ::std::os::raw::c_char,
         _Filename: *const ::std::os::raw::c_char,
@@ -1797,18 +1796,18 @@ extern "C" {
     pub fn _splitpath_s(
         _FullPath: *const ::std::os::raw::c_char,
         _Drive: *mut ::std::os::raw::c_char,
-        _DriveCount: size_t,
+        _DriveCount: usize,
         _Dir: *mut ::std::os::raw::c_char,
-        _DirCount: size_t,
+        _DirCount: usize,
         _Filename: *mut ::std::os::raw::c_char,
-        _FilenameCount: size_t,
+        _FilenameCount: usize,
         _Ext: *mut ::std::os::raw::c_char,
-        _ExtCount: size_t,
+        _ExtCount: usize,
     ) -> errno_t;
 }
 extern "C" {
     pub fn getenv_s(
-        _RequiredCount: *mut size_t,
+        _RequiredCount: *mut usize,
         _Buffer: *mut ::std::os::raw::c_char,
         _BufferCount: rsize_t,
         _VarName: *const ::std::os::raw::c_char,
@@ -1835,7 +1834,7 @@ extern "C" {
 extern "C" {
     pub fn _dupenv_s(
         _Buffer: *mut *mut ::std::os::raw::c_char,
-        _BufferCount: *mut size_t,
+        _BufferCount: *mut usize,
         _VarName: *const ::std::os::raw::c_char,
     ) -> errno_t;
 }
@@ -1856,7 +1855,7 @@ extern "C" {
         _Filename: *const ::std::os::raw::c_char,
         _VarName: *const ::std::os::raw::c_char,
         _Buffer: *mut ::std::os::raw::c_char,
-        _BufferCount: size_t,
+        _BufferCount: usize,
     ) -> errno_t;
 }
 extern "C" {
@@ -1945,7 +1944,7 @@ pub struct WrenHandle {
 pub type WrenReallocateFn = ::std::option::Option<
     unsafe extern "C" fn(
         memory: *mut ::std::os::raw::c_void,
-        newSize: size_t,
+        newSize: usize,
     ) -> *mut ::std::os::raw::c_void,
 >;
 pub type WrenForeignMethodFn = ::std::option::Option<unsafe extern "C" fn(vm: *mut WrenVM)>;
@@ -2049,8 +2048,8 @@ pub struct WrenConfiguration {
     pub bindForeignClassFn: WrenBindForeignClassFn,
     pub writeFn: WrenWriteFn,
     pub errorFn: WrenErrorFn,
-    pub initialHeapSize: size_t,
-    pub minHeapSize: size_t,
+    pub initialHeapSize: usize,
+    pub minHeapSize: usize,
     pub heapGrowthPercent: ::std::os::raw::c_int,
     pub userData: *mut ::std::os::raw::c_void,
 }
@@ -2275,7 +2274,7 @@ extern "C" {
         vm: *mut WrenVM,
         slot: ::std::os::raw::c_int,
         bytes: *const ::std::os::raw::c_char,
-        length: size_t,
+        length: usize,
     );
 }
 extern "C" {
@@ -2286,7 +2285,7 @@ extern "C" {
         vm: *mut WrenVM,
         slot: ::std::os::raw::c_int,
         classSlot: ::std::os::raw::c_int,
-        size: size_t,
+        size: usize,
     ) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
