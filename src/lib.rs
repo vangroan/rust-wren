@@ -7,6 +7,7 @@
 pub mod bindings;
 
 mod class;
+pub mod foreign;
 mod runtime;
 mod types;
 pub mod value;

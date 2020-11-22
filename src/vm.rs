@@ -1,10 +1,14 @@
-use crate::{bindings, class, runtime, types, value::FromWren};
+use crate::{
+    bindings, class,
+    foreign::{ForeignBindings, ForeignClass, ForeignClassKey, ForeignMethod, ForeignMethodKey},
+    runtime, types,
+    value::FromWren,
+};
 use std::{
     borrow::{Borrow, Cow},
-    collections::HashMap,
-    ffi::{CStr, CString},
+    ffi::CString,
     mem,
-    os::raw::{c_char, c_int, c_void},
+    os::raw::c_int,
     {fmt, ptr},
 };
 
@@ -31,6 +35,12 @@ impl WrenVm {
     #[inline]
     pub fn slot_count(&self) -> i32 {
         unsafe { bindings::wrenGetSlotCount(self.vm) }
+    }
+
+    /// Utility function for extracting the concrete [`UserData`] instance from
+    /// the given [`WrenVM`].
+    pub(crate) unsafe fn get_user_data<'a>(vm: *mut bindings::WrenVM) -> Option<&'a mut UserData> {
+        (bindings::wrenGetUserData(vm) as *mut UserData).as_mut()
     }
 }
 
@@ -63,6 +73,7 @@ impl WrenBuilder {
         Default::default()
     }
 
+    /// Replaces the foreign bindings with the provided registry.
     pub fn with_foreign(mut self, foreign_bindings: ForeignBindings) -> Self {
         self.foreign = foreign_bindings;
         self
@@ -83,97 +94,6 @@ impl WrenBuilder {
         self
     }
 
-    fn foreign_class_bindings() -> bindings::WrenBindForeignClassFn {
-        extern "C" fn bind_foreign_class(
-            vm: *mut bindings::WrenVM,
-            module: *const c_char,
-            class_name: *const c_char,
-        ) -> bindings::WrenForeignClassMethods {
-            let userdata = unsafe { get_user_data(vm).expect("User data is null") };
-
-            let module = unsafe {
-                CStr::from_ptr(module)
-                    .to_owned()
-                    .to_string_lossy()
-                    .to_string()
-            };
-            let class_name = unsafe {
-                CStr::from_ptr(class_name)
-                    .to_owned()
-                    .to_string_lossy()
-                    .to_string()
-            };
-
-            println!("binding foreign class {}.{}", module, class_name);
-
-            let (allocate, finalize) = userdata
-                .foreign
-                .classes
-                .0
-                .get(&(module, class_name))
-                .map(|foreign_class| {
-                    let &ForeignClass { allocate, finalize } = foreign_class;
-                    println!("Foreign class found.");
-                    (Some(allocate), Some(finalize))
-                })
-                .unwrap_or_else(|| {
-                    eprintln!("Warning: Foreign class not found");
-                    (None, None)
-                });
-
-            bindings::WrenForeignClassMethods { allocate, finalize }
-        }
-
-        Some(bind_foreign_class)
-    }
-
-    fn foreign_method_bindings() -> bindings::WrenBindForeignMethodFn {
-        /// Method used when a foreign method binding is not found.
-        extern "C" fn bind_foreign_class(
-            vm: *mut bindings::WrenVM,
-            module: *const ::std::os::raw::c_char,
-            class_name: *const ::std::os::raw::c_char,
-            _is_static: bool, // TODO
-            signature: *const ::std::os::raw::c_char,
-        ) -> bindings::WrenForeignMethodFn {
-            let userdata = unsafe { get_user_data(vm).expect("User data is null") };
-
-            let module = unsafe {
-                CStr::from_ptr(module)
-                    .to_owned()
-                    .to_string_lossy()
-                    .to_string()
-            };
-            let class_name = unsafe {
-                CStr::from_ptr(class_name)
-                    .to_owned()
-                    .to_string_lossy()
-                    .to_string()
-            };
-            let signature = unsafe {
-                CStr::from_ptr(signature)
-                    .to_owned()
-                    .to_string_lossy()
-                    .to_string()
-            };
-
-            let method = userdata
-                .foreign
-                .methods
-                .0
-                .get(&(module, class_name, signature))
-                .map(|m| m.func);
-
-            if method.is_none() {
-                eprintln!("Warning: Foreign method not found");
-            }
-
-            method
-        }
-
-        Some(bind_foreign_class)
-    }
-
     pub fn build(self) -> WrenVm {
         let mut config = unsafe {
             let mut uninit_config = mem::MaybeUninit::<bindings::WrenConfiguration>::zeroed();
@@ -188,8 +108,8 @@ impl WrenBuilder {
         let WrenBuilder { foreign } = self;
         let user_data = UserData { foreign };
         config.userData = Box::into_raw(Box::new(user_data)) as _;
-        config.bindForeignMethodFn = WrenBuilder::foreign_method_bindings();
-        config.bindForeignClassFn = WrenBuilder::foreign_class_bindings();
+        config.bindForeignMethodFn = Some(ForeignBindings::bind_foreign_method);
+        config.bindForeignClassFn = Some(ForeignBindings::bind_foreign_class);
 
         // WrenVM makes a copy of the configuration. We can
         // discard our copy after creation.
@@ -220,12 +140,6 @@ impl ::std::fmt::Display for WrenError {
             RuntimeError => write!(f, "runtime error"),
         }
     }
-}
-
-/// Utility function for extracting the concrete [`UserData`] instance from
-/// the given [`WrenVM`].
-unsafe fn get_user_data<'a>(vm: *mut bindings::WrenVM) -> Option<&'a mut UserData> {
-    (bindings::wrenGetUserData(vm) as *mut UserData).as_mut()
 }
 
 pub struct WrenContext<'wren> {
@@ -283,13 +197,7 @@ impl<'wren> WrenContext<'wren> {
 }
 
 pub struct UserData {
-    foreign: ForeignBindings,
-}
-
-#[derive(Default)]
-pub struct ForeignBindings {
-    pub(crate) classes: ForeignClasses,
-    pub(crate) methods: ForeignMethods,
+    pub foreign: ForeignBindings,
 }
 
 pub struct ModuleBuilder<'a> {
@@ -309,57 +217,23 @@ impl<'a> ModuleBuilder<'a> {
     where
         S: Into<Cow<'a, str>>,
     {
-        let key = (self.module.to_owned(), class.into().into_owned());
-        self.foreign.classes.0.insert(key, binding);
+        let key = ForeignClassKey {
+            module: self.module.to_owned(),
+            class: class.into().into_owned(),
+        };
+        self.foreign.classes.insert(key, binding);
     }
 
     pub fn add_method_binding<S>(&mut self, class: S, binding: ForeignMethod)
     where
         S: Into<Cow<'a, str>>,
     {
-        let key = (
-            self.module.to_owned(),
-            class.into().into_owned(),
-            binding.sig.clone(),
-        );
-        self.foreign.methods.0.insert(key, binding);
+        let key = ForeignMethodKey {
+            module: self.module.to_owned(),
+            class: class.into().into_owned(),
+            sig: binding.sig.clone(),
+            is_static: binding.is_static,
+        };
+        self.foreign.methods.insert(key, binding);
     }
-}
-
-pub struct ForeignMethod {
-    pub is_static: bool,
-    pub arity: usize,
-    pub sig: String,
-    pub func: unsafe extern "C" fn(*mut bindings::WrenVM),
-}
-
-#[derive(Default)]
-pub struct ForeignMethods(pub HashMap<(String, String, String), ForeignMethod>);
-
-pub struct ForeignClass {
-    pub allocate: unsafe extern "C" fn(*mut bindings::WrenVM),
-    pub finalize: unsafe extern "C" fn(*mut c_void),
-}
-
-#[derive(Default)]
-pub struct ForeignClasses(pub HashMap<(String, String), ForeignClass>);
-
-impl ForeignBindings {
-    pub fn add_class<M, C>(&mut self, module: M, class: C, binding: ForeignClass)
-    where
-        M: ToString,
-        C: ToString,
-    {
-        self.classes
-            .0
-            .insert((module.to_string(), class.to_string()), binding);
-    }
-}
-
-pub trait WrenClass {
-    /// Name of the class as it appears in Wren script.
-    const NAME: &'static str;
-
-    fn create(vm: &WrenContext) -> Self;
-    fn add_methods() {}
 }

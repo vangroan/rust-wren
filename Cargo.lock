@@ -289,7 +289,7 @@ checksum = "8cab7a364d15cde1e505267766a2d3c4e22a843e1a601f0fa7564c0f82ced11c"
 
 [[package]]
 name = "rust-wren"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "bindgen",
  "inventory",
@@ -299,7 +299,7 @@ dependencies = [
 
 [[package]]
 name = "rust_wren_derive"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "quote",
  "rust_wren_derive_backend",
@@ -308,7 +308,7 @@ dependencies = [
 
 [[package]]
 name = "rust_wren_derive_backend"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "proc-macro2",
  "quote",
