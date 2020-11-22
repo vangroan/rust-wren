@@ -1,8 +1,6 @@
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::{format_ident, quote};
-use syn::{
-    Attribute, FnArg, Ident, ImplItem, ImplItemMethod, ItemImpl, Lit, Signature, Type,
-};
+use syn::{Attribute, FnArg, Ident, ImplItem, ImplItemMethod, ItemImpl, Lit, Signature, Type};
 
 pub fn build_wren_methods(mut ast: ItemImpl) -> syn::Result<TokenStream> {
     if let Some((_, path, _)) = ast.trait_ {
@@ -286,9 +284,9 @@ fn gen_register(wrappers: &[WrenFnSpec]) -> syn::Result<TokenStream> {
     let calls = wrappers
         .iter()
         .map(|spec| {
-            let is_static = Ident::new("true", Span::call_site());
-            let arity = Lit::new(Literal::usize_unsuffixed(spec.arity));
-            let sig = Lit::new(Literal::string(spec.sig.as_str()));
+            let is_static = Ident::new(spec.is_static.to_string().as_str(), Span::call_site());
+            let arity = Literal::usize_unsuffixed(spec.arity);
+            let sig = Literal::string(spec.sig.as_str());
 
             let wrap_ident = spec.wrap_ident.clone();
             let func = quote! { #wrap_ident };
@@ -296,7 +294,7 @@ fn gen_register(wrappers: &[WrenFnSpec]) -> syn::Result<TokenStream> {
             quote! {
                 builder.add_method_binding(
                     <Self as rust_wren::WrenForeignClass>::NAME,
-                    rust_wren::ForeignMethod {
+                    rust_wren::foreign::ForeignMethod {
                         is_static: #is_static,
                         arity: #arity,
                         sig: #sig.to_owned(),
