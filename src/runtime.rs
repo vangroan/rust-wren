@@ -7,7 +7,11 @@ use std::{
     ptr,
 };
 
-pub extern "C" fn wren_reallocate(memory: *mut c_void, new_size: usize) -> *mut c_void {
+pub extern "C" fn wren_reallocate(
+    memory: *mut c_void,
+    new_size: usize,
+    _userdata: *mut c_void,
+) -> *mut c_void {
     unsafe {
         if memory.is_null() {
             // Allocate
