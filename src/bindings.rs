@@ -83,10 +83,10 @@ pub const __bool_true_false_are_defined: u32 = 1;
 pub const false_: u32 = 0;
 pub const true_: u32 = 1;
 pub const WREN_VERSION_MAJOR: u32 = 0;
-pub const WREN_VERSION_MINOR: u32 = 3;
+pub const WREN_VERSION_MINOR: u32 = 4;
 pub const WREN_VERSION_PATCH: u32 = 0;
-pub const WREN_VERSION_STRING: &'static [u8; 6usize] = b"0.3.0\0";
-pub const WREN_VERSION_NUMBER: u32 = 3000;
+pub const WREN_VERSION_STRING: &'static [u8; 6usize] = b"0.4.0\0";
+pub const WREN_VERSION_NUMBER: u32 = 4000;
 pub type va_list = *mut ::std::os::raw::c_char;
 extern "C" {
     pub fn __va_start(arg1: *mut *mut ::std::os::raw::c_char, ...);
@@ -1945,6 +1945,7 @@ pub type WrenReallocateFn = ::std::option::Option<
     unsafe extern "C" fn(
         memory: *mut ::std::os::raw::c_void,
         newSize: usize,
+        userData: *mut ::std::os::raw::c_void,
     ) -> *mut ::std::os::raw::c_void,
 >;
 pub type WrenForeignMethodFn = ::std::option::Option<unsafe extern "C" fn(vm: *mut WrenVM)>;
@@ -1957,11 +1958,68 @@ pub type WrenResolveModuleFn = ::std::option::Option<
         name: *const ::std::os::raw::c_char,
     ) -> *const ::std::os::raw::c_char,
 >;
+pub type WrenLoadModuleCompleteFn = ::std::option::Option<
+    unsafe extern "C" fn(
+        vm: *mut WrenVM,
+        name: *const ::std::os::raw::c_char,
+        result: WrenLoadModuleResult,
+    ),
+>;
+#[repr(C)]
+#[derive(Debug, Copy, Clone)]
+pub struct WrenLoadModuleResult {
+    pub source: *const ::std::os::raw::c_char,
+    pub onComplete: WrenLoadModuleCompleteFn,
+    pub userData: *mut ::std::os::raw::c_void,
+}
+#[test]
+fn bindgen_test_layout_WrenLoadModuleResult() {
+    assert_eq!(
+        ::std::mem::size_of::<WrenLoadModuleResult>(),
+        24usize,
+        concat!("Size of: ", stringify!(WrenLoadModuleResult))
+    );
+    assert_eq!(
+        ::std::mem::align_of::<WrenLoadModuleResult>(),
+        8usize,
+        concat!("Alignment of ", stringify!(WrenLoadModuleResult))
+    );
+    assert_eq!(
+        unsafe { &(*(::std::ptr::null::<WrenLoadModuleResult>())).source as *const _ as usize },
+        0usize,
+        concat!(
+            "Offset of field: ",
+            stringify!(WrenLoadModuleResult),
+            "::",
+            stringify!(source)
+        )
+    );
+    assert_eq!(
+        unsafe { &(*(::std::ptr::null::<WrenLoadModuleResult>())).onComplete as *const _ as usize },
+        8usize,
+        concat!(
+            "Offset of field: ",
+            stringify!(WrenLoadModuleResult),
+            "::",
+            stringify!(onComplete)
+        )
+    );
+    assert_eq!(
+        unsafe { &(*(::std::ptr::null::<WrenLoadModuleResult>())).userData as *const _ as usize },
+        16usize,
+        concat!(
+            "Offset of field: ",
+            stringify!(WrenLoadModuleResult),
+            "::",
+            stringify!(userData)
+        )
+    );
+}
 pub type WrenLoadModuleFn = ::std::option::Option<
     unsafe extern "C" fn(
         vm: *mut WrenVM,
         name: *const ::std::os::raw::c_char,
-    ) -> *mut ::std::os::raw::c_char,
+    ) -> WrenLoadModuleResult,
 >;
 pub type WrenBindForeignMethodFn = ::std::option::Option<
     unsafe extern "C" fn(
@@ -2194,9 +2252,10 @@ pub const WrenType_WREN_TYPE_BOOL: WrenType = 0;
 pub const WrenType_WREN_TYPE_NUM: WrenType = 1;
 pub const WrenType_WREN_TYPE_FOREIGN: WrenType = 2;
 pub const WrenType_WREN_TYPE_LIST: WrenType = 3;
-pub const WrenType_WREN_TYPE_NULL: WrenType = 4;
-pub const WrenType_WREN_TYPE_STRING: WrenType = 5;
-pub const WrenType_WREN_TYPE_UNKNOWN: WrenType = 6;
+pub const WrenType_WREN_TYPE_MAP: WrenType = 4;
+pub const WrenType_WREN_TYPE_NULL: WrenType = 5;
+pub const WrenType_WREN_TYPE_STRING: WrenType = 6;
+pub const WrenType_WREN_TYPE_UNKNOWN: WrenType = 7;
 pub type WrenType = i32;
 extern "C" {
     pub fn wrenInitConfiguration(configuration: *mut WrenConfiguration);
@@ -2292,6 +2351,9 @@ extern "C" {
     pub fn wrenSetSlotNewList(vm: *mut WrenVM, slot: ::std::os::raw::c_int);
 }
 extern "C" {
+    pub fn wrenSetSlotNewMap(vm: *mut WrenVM, slot: ::std::os::raw::c_int);
+}
+extern "C" {
     pub fn wrenSetSlotNull(vm: *mut WrenVM, slot: ::std::os::raw::c_int);
 }
 extern "C" {
@@ -2316,11 +2378,53 @@ extern "C" {
     );
 }
 extern "C" {
+    pub fn wrenSetListElement(
+        vm: *mut WrenVM,
+        listSlot: ::std::os::raw::c_int,
+        index: ::std::os::raw::c_int,
+        elementSlot: ::std::os::raw::c_int,
+    );
+}
+extern "C" {
     pub fn wrenInsertInList(
         vm: *mut WrenVM,
         listSlot: ::std::os::raw::c_int,
         index: ::std::os::raw::c_int,
         elementSlot: ::std::os::raw::c_int,
+    );
+}
+extern "C" {
+    pub fn wrenGetMapCount(vm: *mut WrenVM, slot: ::std::os::raw::c_int) -> ::std::os::raw::c_int;
+}
+extern "C" {
+    pub fn wrenGetMapContainsKey(
+        vm: *mut WrenVM,
+        mapSlot: ::std::os::raw::c_int,
+        keySlot: ::std::os::raw::c_int,
+    ) -> bool;
+}
+extern "C" {
+    pub fn wrenGetMapValue(
+        vm: *mut WrenVM,
+        mapSlot: ::std::os::raw::c_int,
+        keySlot: ::std::os::raw::c_int,
+        valueSlot: ::std::os::raw::c_int,
+    );
+}
+extern "C" {
+    pub fn wrenSetMapValue(
+        vm: *mut WrenVM,
+        mapSlot: ::std::os::raw::c_int,
+        keySlot: ::std::os::raw::c_int,
+        valueSlot: ::std::os::raw::c_int,
+    );
+}
+extern "C" {
+    pub fn wrenRemoveMapValue(
+        vm: *mut WrenVM,
+        mapSlot: ::std::os::raw::c_int,
+        keySlot: ::std::os::raw::c_int,
+        removedValueSlot: ::std::os::raw::c_int,
     );
 }
 extern "C" {
@@ -2330,6 +2434,16 @@ extern "C" {
         name: *const ::std::os::raw::c_char,
         slot: ::std::os::raw::c_int,
     );
+}
+extern "C" {
+    pub fn wrenHasVariable(
+        vm: *mut WrenVM,
+        module: *const ::std::os::raw::c_char,
+        name: *const ::std::os::raw::c_char,
+    ) -> bool;
+}
+extern "C" {
+    pub fn wrenHasModule(vm: *mut WrenVM, module: *const ::std::os::raw::c_char) -> bool;
 }
 extern "C" {
     pub fn wrenAbortFiber(vm: *mut WrenVM, slot: ::std::os::raw::c_int);

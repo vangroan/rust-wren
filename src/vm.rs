@@ -247,9 +247,21 @@ impl<'wren> WrenContext<'wren> {
     /// See:
     /// - [#717 When using wrenGetVariable, it now returns an int to inform you of failure](https://github.com/wren-lang/wren/pull/717)
     /// - [#601 wrenGetVariable does not seem to return a sane value](https://github.com/wren-lang/wren/issues/601)
-    pub fn var_ref(&mut self, module: &str, name: &str) -> Option<WrenRef<'wren>> {
+    pub fn get_var(&mut self, module: &str, name: &str) -> Option<WrenRef<'wren>> {
         let c_module = CString::new(module).expect("Module name contains a null byte");
         let c_name = CString::new(name).expect("Name name contains a null byte");
+
+        let module_exists = unsafe { bindings::wrenHasModule(self.vm, c_module.as_ptr()) };
+        if !module_exists {
+            return None;
+        }
+
+        let var_exists =
+            unsafe { bindings::wrenHasVariable(self.vm, c_module.as_ptr(), c_name.as_ptr()) };
+        if !var_exists {
+            return None;
+        }
+
         self.ensure_slots(1);
 
         unsafe {
@@ -257,8 +269,59 @@ impl<'wren> WrenContext<'wren> {
         }
 
         // If the module or variable don't exist, there's junk in the slot.
-        // println!("{}.{} is type {:?} with value {:?}", module, name, self.slot_type(0), self.get_slot::<f64>(0));
         self.get_slot::<WrenRef<'wren>>(0)
+    }
+
+    /// Checks whether a variable exists.
+    ///
+    /// # Performance
+    ///
+    /// Module and variable name strings are copied to Wren.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rust_wren::prelude::*;
+    /// # let mut vm = WrenBuilder::new().build();
+    /// # vm.interpret("example", r#"var variableName = 0.0"#).expect("Interpret failed");
+    /// vm.context(|ctx| {
+    ///     assert!(ctx.has_var("example", "variableName"));
+    ///     assert!(!ctx.has_var("example", "doesNotExist"));
+    /// });
+    /// ```
+    pub fn has_var(&mut self, module: &str, name: &str) -> bool {
+        let c_module = CString::new(module).expect("Module name contains a null byte");
+        let c_name = CString::new(name).expect("Name name contains a null byte");
+
+        let module_exists = unsafe { bindings::wrenHasModule(self.vm, c_module.as_ptr()) };
+        if !module_exists {
+            false
+        } else {
+            unsafe { bindings::wrenHasVariable(self.vm, c_module.as_ptr(), c_name.as_ptr()) }
+        }
+    }
+
+    /// Checks whether a module exists.
+    ///
+    /// # Performance
+    ///
+    /// Copies module and variable name strings to Wren.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use rust_wren::prelude::*;
+    /// # let mut vm = WrenBuilder::new().build();
+    /// # vm.interpret("example", "").expect("Interpret failed");
+    /// vm.context(|ctx| {
+    ///     assert!(ctx.has_module("example"));
+    ///     assert!(!ctx.has_module("does_not_exist"));
+    /// });
+    /// ```
+    pub fn has_module(&mut self, module: &str) -> bool {
+        let c_module = CString::new(module).expect("Module name contains a null byte");
+
+        unsafe { bindings::wrenHasModule(self.vm, c_module.as_ptr()) }
     }
 
     pub fn destructor_sender(&self) -> Sender<*mut bindings::WrenHandle> {
@@ -303,7 +366,7 @@ impl<'wren> WrenContext<'wren> {
         let class_name = <T as class::WrenForeignClass>::NAME;
 
         // Class declarations are simple variables in Wren.
-        let class_ref = self.var_ref(module_name, class_name).unwrap();
+        let class_ref = self.get_var(module_name, class_name).unwrap();
 
         // Prepare for foreign value allocation.
         self.ensure_slots(1);

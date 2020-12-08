@@ -60,7 +60,7 @@ fn test_wren_call() {
 
     vm.context(|ctx| {
         // Static call looks up class declaration as variable.
-        let test_class = ctx.var_ref("test_handle", "TestHandle").unwrap();
+        let test_class = ctx.get_var("test_handle", "TestHandle").unwrap();
         let print_fn = FnSymbol::compile(ctx, "print()");
         let call_handle = WrenCallRef::new(test_class, print_fn);
 
@@ -70,7 +70,7 @@ fn test_wren_call() {
 
     vm.context(|ctx| {
         // Static call looks up class declaration as variable.
-        let test_class = ctx.var_ref("test_handle", "TestHandle").unwrap();
+        let test_class = ctx.get_var("test_handle", "TestHandle").unwrap();
         let print_fn = FnSymbol::compile(ctx, "withArgs(_,_,_)");
         let call_handle = WrenCallRef::new(test_class, print_fn);
 
@@ -97,7 +97,7 @@ fn test_foreign_call() {
 
     vm.context(|ctx| {
         // Instance method
-        let move_me_obj = ctx.var_ref("test_handle", "m").unwrap();
+        let move_me_obj = ctx.get_var("test_handle", "m").unwrap();
         let func = FnSymbol::compile(ctx, "inner()");
         let call_handle = WrenCallRef::new(move_me_obj, func);
 
@@ -119,7 +119,7 @@ fn test_call_handle_with_arguments() {
 
     vm.context(|ctx| {
         // Instance method
-        let move_me_obj = ctx.var_ref("test_handle", "m").unwrap();
+        let move_me_obj = ctx.get_var("test_handle", "m").unwrap();
         let func = FnSymbol::compile(ctx, "one(_)");
         let call_handle = WrenCallRef::new(move_me_obj, func);
 
@@ -130,12 +130,24 @@ fn test_call_handle_with_arguments() {
 
     vm.context(|ctx| {
         // Instance method
-        let move_me_obj = ctx.var_ref("test_handle", "m").unwrap();
+        let move_me_obj = ctx.get_var("test_handle", "m").unwrap();
         let func = FnSymbol::compile(ctx, "two(_,_)");
         let call_handle = WrenCallRef::new(move_me_obj, func);
 
         println!("Rust: Calling MoveMe.two(_,_)");
         let result: f64 = call_handle.call::<_, f64>(ctx, (7.0, 3.0)).unwrap();
         assert_eq!(result, 21.0);
+    });
+}
+
+#[test]
+fn test_non_existing() {
+    let mut vm = WrenBuilder::new().build();
+
+    vm.interpret("test_handle", "").unwrap();
+
+    vm.context(|ctx| {
+        assert!(ctx.get_var("test_handle", "m").is_none());
+        assert!(ctx.get_var("unknown", "m").is_none());
     });
 }

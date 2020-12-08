@@ -103,7 +103,7 @@ impl<'wren> FnSymbol<'wren> {
 /// "#).unwrap();
 ///
 /// vm.context(|ctx| {
-///     let receiver = ctx.var_ref("example", "Factorial").unwrap();
+///     let receiver = ctx.get_var("example", "Factorial").unwrap();
 ///     let func = FnSymbol::compile(ctx, "recursive(_)");
 ///     let call_ref = WrenCallRef::new(receiver, func);
 ///     
@@ -146,7 +146,7 @@ impl<'wren> WrenCallRef<'wren> {
     /// "#).unwrap();
     ///
     /// vm.context(|ctx| {
-    ///     let receiver = ctx.var_ref("example", "Calculate").unwrap();
+    ///     let receiver = ctx.get_var("example", "Calculate").unwrap();
     ///     let func = FnSymbol::compile(ctx, "addOrSub(_,_,_)");
     ///     let call_ref = WrenCallRef::new(receiver, func);
     ///     
