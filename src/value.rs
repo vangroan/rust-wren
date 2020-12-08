@@ -22,6 +22,15 @@ pub trait FromWren<'wren> {
     fn get_slot(ctx: &mut WrenContext, slot_num: i32) -> Option<Self::Output>;
 }
 
+impl<'wren> FromWren<'wren> for bool {
+    type Output = Self;
+
+    fn get_slot(ctx: &mut WrenContext, slot_num: i32) -> Option<Self::Output> {
+        verify_slot!(ctx, slot_num, WrenType::Bool);
+        Some(unsafe { bindings::wrenGetSlotBool(ctx.vm, slot_num) })
+    }
+}
+
 impl<'wren> FromWren<'wren> for f64 {
     type Output = Self;
 
@@ -45,6 +54,16 @@ impl<'wren> FromWren<'wren> for f64 {
 //     }
 // }
 
+/// Does nothing.
+impl<'wren> FromWren<'wren> for () {
+    type Output = ();
+
+    #[inline]
+    fn get_slot(_ctx: &mut WrenContext, _slot_num: i32) -> Option<Self::Output> {
+        Some(())
+    }
+}
+
 impl<'wren, T> FromWren<'wren> for T
 where
     T: 'wren + WrenForeignClass,
@@ -64,6 +83,10 @@ where
 pub trait ToWren {
     /// Moves the value into a slot in the VM.
     fn put(self, ctx: &mut WrenContext, slot: i32);
+
+    fn size_hint(&self) -> usize {
+        1
+    }
 }
 
 impl ToWren for bool {
@@ -101,5 +124,39 @@ where
             Some(val) => val.put(ctx, slot),
             None => unsafe { bindings::wrenSetSlotNull(ctx.vm, slot) },
         }
+    }
+}
+
+impl<A, B> ToWren for (A, B)
+where
+    A: ToWren,
+    B: ToWren,
+{
+    fn put(self, ctx: &mut WrenContext, slot: i32) {
+        let (a, b) = self;
+        A::put(a, ctx, slot);
+        B::put(b, ctx, slot + 1);
+    }
+
+    fn size_hint(&self) -> usize {
+        2
+    }
+}
+
+impl<A, B, C> ToWren for (A, B, C)
+where
+    A: ToWren,
+    B: ToWren,
+    C: ToWren,
+{
+    fn put(self, ctx: &mut WrenContext, slot: i32) {
+        let (a, b, c) = self;
+        A::put(a, ctx, slot);
+        B::put(b, ctx, slot + 1);
+        C::put(c, ctx, slot + 2);
+    }
+
+    fn size_hint(&self) -> usize {
+        3
     }
 }

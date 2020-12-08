@@ -136,8 +136,6 @@ fn gen_wren_construct(_cls: &Type, method: &ImplItemMethod) -> syn::Result<Token
 
             // Swap the constructed object on the stack with the heap memory
             // owned by Wren.
-            //
-            // The stack object will be dropped at the end of this function.
             ::std::mem::swap(wren_val, &mut rust_val);
 
             // After the swap, this now contains the value Wren wrote after it's allocation,
@@ -214,7 +212,6 @@ fn gen_wren_method(
             let vm: &mut rust_wren::bindings::WrenVM = unsafe { vm.as_mut().unwrap() };
             let mut ctx = rust_wren::WrenContext::new(vm);
 
-            // TODO: Put return value into slot.
             let result = <Self>::#method_ident(#(#args),*);
 
             // Method result goes into slot 0
@@ -340,7 +337,7 @@ impl WrenFnSpec {
         let is_static = sig
             .inputs
             .iter()
-            .any(|arg| !matches!(arg, FnArg::Receiver(_)))
+            .all(|arg| !matches!(arg, FnArg::Receiver(_)))
             || sig.inputs.is_empty();
 
         // Wren does not include the receiver in the function signature, but Rust does.

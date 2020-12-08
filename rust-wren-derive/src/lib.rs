@@ -62,6 +62,7 @@ fn impl_wren_class(attr: WrenClassArgs, item: ItemStruct) -> TokenStream {
                 };
                 let class_name = <Self as rust_wren::WrenForeignClass>::NAME;
                 bindings.add_class_binding(class_name, foreign_class);
+                bindings.add_reverse_class_lookup::<Self>();
                 Self::__wren_register_methods(bindings);
             }
         }

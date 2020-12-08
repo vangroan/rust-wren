@@ -3,16 +3,17 @@
 //! Allows Wren to lookup Rust types at runtime.
 use crate::{bindings, WrenVm};
 use std::{
+    any::TypeId,
     collections::HashMap,
     ffi::CStr,
     os::raw::{c_char, c_void},
 };
 
 /// Registry of bindings.
-#[derive(Default)]
 pub struct ForeignBindings {
     pub(crate) classes: HashMap<ForeignClassKey, ForeignClass>,
     pub(crate) methods: HashMap<ForeignMethodKey, ForeignMethod>,
+    pub(crate) reverse: HashMap<TypeId, ForeignClassKey>,
 }
 
 /// Key for foreign class lookup.
@@ -50,6 +51,7 @@ impl ForeignBindings {
         ForeignBindings {
             classes: HashMap::new(),
             methods: HashMap::new(),
+            reverse: HashMap::new(),
         }
     }
 
@@ -137,5 +139,11 @@ impl ForeignBindings {
         }
 
         method
+    }
+}
+
+impl Default for ForeignBindings {
+    fn default() -> Self {
+        Self::new()
     }
 }
