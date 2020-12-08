@@ -60,6 +60,10 @@ impl WrenSequenceProtocol for WrenVector2 {
 }
 ```
 
+## Known Issues
+
+- Looking up a variable via `WrenContext::var_ref`, with either the module or variable not existing, ir undefined behaviour. See: https://github.com/wren-lang/wren/pull/717
+
 ## TODO
 
 - [x] Lookup for foreign methods must take `is_static` into account.

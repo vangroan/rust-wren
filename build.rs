@@ -6,10 +6,36 @@ use std::{env, path::PathBuf, process::Command};
 fn build_win64() {
     println!("Building Wren");
 
+    let profile = match env::var("PROFILE").expect("PROFILE not set").as_str() {
+        "release" => "Release",
+        "debug" => "Debug",
+        s => {
+            panic!("Unsupported profile {}", s);
+        }
+    };
+
+    let platform = env::var("CARGO_CFG_TARGET_ARCH").expect("CARGO_CFG_TARGET_ARCH not set");
+
+    let arch_conf = match platform.as_str() {
+        "x86" => "32bit",
+        "x86_64" => "64bit",
+        _ => {
+            panic!("Unsupported architecture {}", platform);
+        }
+    };
+
+    let arch_plat = match platform.as_str() {
+        "x86" => "Win32",
+        "x86_64" => "x64",
+        _ => {
+            panic!("Unsupported architecture {}", platform);
+        }
+    };
+
     let output = Command::new("msbuild.exe")
         .arg(r"wren\projects\vs2019\wren.vcxproj")
-        .arg("/property:Configuration=Release 64bit")
-        .arg("/property:Platform=x64")
+        .arg(format!("/property:Configuration={} {}", profile, arch_conf))
+        .arg(format!("/property:Platform={}", arch_plat))
         .output()
         .expect("Failed to invoke MSBuild");
 
@@ -22,11 +48,18 @@ fn build_win64() {
 }
 
 fn generate_bindings() {
+    let profile = env::var("PROFILE").expect("PROFILE not set");
+
     println!("cargo:rustc-link-search=wren/lib");
 
     // Tell cargo to tell rustc to link the wren
     // shared library.
-    println!("cargo:rustc-link-lib=wren");
+    let debug_suffix = if profile.as_str() == "debug" {
+        "_d"
+    } else {
+        ""
+    };
+    println!("cargo:rustc-link-lib=wren{}", debug_suffix);
 
     // Tell cargo to invalidate the built crate whenever the wrapper changes
     println!("cargo:rerun-if-changed=wrapper.h");
