@@ -140,6 +140,11 @@ impl ForeignBindings {
 
         method
     }
+
+    /// Retrieve the module and class name of a registered foreign class.
+    pub fn get_class_key<T: 'static>(&self) -> Option<&ForeignClassKey> {
+        self.reverse.get(&TypeId::of::<T>())
+    }
 }
 
 impl Default for ForeignBindings {

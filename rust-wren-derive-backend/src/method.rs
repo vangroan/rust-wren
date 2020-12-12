@@ -105,8 +105,8 @@ fn gen_wren_construct(_cls: &Type, method: &ImplItemMethod) -> syn::Result<Token
         }
     }
 
-    // Wrapped in RefCell because the multiple pointers can be retrieved from VM.
-    let ty = quote! { RefCell<Self> };
+    // Wrapped in WrenCell because the multiple pointers can be retrieved from VM.
+    let ty = quote! { WrenCell<Self> };
 
     let tokens = quote! {
         #method
@@ -118,7 +118,7 @@ fn gen_wren_construct(_cls: &Type, method: &ImplItemMethod) -> syn::Result<Token
         ///
         /// See: [Storing C Data](https://wren.io/embedding/storing-c-data.html)
         extern "C" fn __wren_allocate(vm: *mut rust_wren::bindings::WrenVM) {
-            use std::cell::RefCell;
+            use rust_wren::class::WrenCell;
 
             // Wren wants to own the memory containing the data backing the foreign function.
             let wren_ptr: *mut #ty = unsafe {
@@ -132,7 +132,7 @@ fn gen_wren_construct(_cls: &Type, method: &ImplItemMethod) -> syn::Result<Token
 
             // TODO: Constructor method is not required, so make this optional.
             // TODO: Validate return type of consturctor.
-            let mut rust_val: RefCell<Self> = RefCell::new(<Self>::#new_method(#(#args),*));
+            let mut rust_val: WrenCell<Self> = WrenCell::new(<Self>::#new_method(#(#args),*));
 
             // Swap the constructed object on the stack with the heap memory
             // owned by Wren.
@@ -152,8 +152,8 @@ fn gen_wren_construct(_cls: &Type, method: &ImplItemMethod) -> syn::Result<Token
 }
 
 fn gen_wren_finalize() -> syn::Result<TokenStream> {
-    // Wrapped in RefCell because the multiple pointers can be retrieved from VM.
-    let ty = quote! { ::std::cell::RefCell<Self> };
+    // Wrapped in WrenCell because the multiple pointers can be retrieved from VM.
+    let ty = quote! { ::rust_wren::class::WrenCell<Self> };
 
     Ok(quote! {
         /// Finalizer method, called when the object instance is garbage collected.
@@ -231,18 +231,18 @@ fn gen_wren_method(
 ///
 /// # Arguments
 ///
-/// - `ctx` - Identifier of the [`WrenContext`] that will be in scope for the method call.
+/// - `ctx` - Identifier of the `WrenContext` that will be in scope for the method call.
 ///
 /// # Receivers
 ///
 /// Receivers come in various flavours, and need to be borrowed from the
-/// [`RefCell`] wrapping the type.
+/// `WrenCell` wrapping the type.
 ///
 /// - `self` - We only support cloning, and not moving, the value out of Wren.
-/// - `&self` - Value is borrowed from the [`RefCell`].
-/// - `&mut self` - Value is borrowed mutably from the [`RefCell`].
+/// - `&self` - Value is borrowed from the `WrenCell`.
+/// - `&mut self` - Value is borrowed mutably from the `WrenCell`.
 ///
-/// Currently receivers of type [`Box`], [`Rc`], [`Arc`] and [`Pin`]
+/// Currently receivers of type `Box`, `Rc`, `Arc` and `Pin`
 /// are not supported.
 fn gen_args_from_slots(ctx: &Ident, method: &ImplItemMethod) -> syn::Result<Vec<TokenStream>> {
     let method_name = method.sig.ident.to_string();
@@ -257,7 +257,7 @@ fn gen_args_from_slots(ctx: &Ident, method: &ImplItemMethod) -> syn::Result<Vec<
                 FnArg::Receiver(_) => {
                     quote! {
                         {
-                            let ref_cell: &mut ::std::cell::RefCell<Self> = #ctx.get_slot::<Self>(#idx_lit)
+                            let ref_cell: &mut ::rust_wren::class::WrenCell<Self> = #ctx.get_slot::<Self>(#idx_lit)
                                 .unwrap_or_else(|| panic!("Getting slot {} for method '{}' failed", #idx_lit, #method_name))  ;
                             &mut *ref_cell.borrow_mut()
                         }
@@ -267,7 +267,7 @@ fn gen_args_from_slots(ctx: &Ident, method: &ImplItemMethod) -> syn::Result<Vec<
                     let arg_type = pat_ty.ty.clone();
                     quote! {
                         #ctx.get_slot::<#arg_type>(#idx_lit)
-                            .unwrap_or_else(|| panic!("Getting slot {} for method '{}' failed", #idx_lit, #method_name))  
+                            .unwrap_or_else(|| panic!("Getting slot {} for method '{}' failed", #idx_lit, #method_name))
                     }
                 }
             }
@@ -290,7 +290,7 @@ fn gen_register(wrappers: &[WrenFnSpec]) -> syn::Result<TokenStream> {
 
             quote! {
                 builder.add_method_binding(
-                    <Self as rust_wren::WrenForeignClass>::NAME,
+                    <Self as rust_wren::class::WrenForeignClass>::NAME,
                     rust_wren::foreign::ForeignMethod {
                         is_static: #is_static,
                         arity: #arity,

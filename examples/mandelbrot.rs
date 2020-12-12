@@ -2,7 +2,7 @@
 use rust_wren::WrenBuilder;
 
 fn main() {
-    let vm = WrenBuilder::new().build();
+    let mut vm = WrenBuilder::new().build();
 
     vm.interpret(
         "syntax_example",

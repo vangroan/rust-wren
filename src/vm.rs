@@ -1,15 +1,15 @@
 use crate::{
-    bindings, class,
+    bindings,
+    class::{WrenCell, WrenForeignClass},
     foreign::{ForeignBindings, ForeignClass, ForeignClassKey, ForeignMethod, ForeignMethodKey},
     handle::WrenRef,
     runtime, types,
-    value::{FromWren, ToWren},
+    value::FromWren,
 };
 use log::trace;
 use std::{
     any::TypeId,
     borrow::{Borrow, Cow},
-    cell::RefCell,
     ffi::CString,
     mem,
     os::raw::c_int,
@@ -23,12 +23,14 @@ pub struct WrenVm {
 }
 
 impl WrenVm {
-    pub fn interpret(&self, module: &str, source: &str) -> WrenResult<()> {
+    pub fn interpret(&mut self, module: &str, source: &str) -> WrenResult<()> {
+        let vm = unsafe { self.vm.as_mut().unwrap() };
+        let _guard = ContextGuard { vm: self };
+
         // Wren copies these strings, so they are safe to free.
         let c_module = CString::new(module).expect("Module name contains a null byte");
         let c_source = CString::new(source).expect("Source contains a null byte");
-        let result =
-            unsafe { bindings::wrenInterpret(self.vm, c_module.as_ptr(), c_source.as_ptr()) };
+        let result = unsafe { bindings::wrenInterpret(vm, c_module.as_ptr(), c_source.as_ptr()) };
         match result {
             bindings::WrenInterpretResult_WREN_RESULT_SUCCESS => Ok(()),
             bindings::WrenInterpretResult_WREN_RESULT_COMPILE_ERROR => Err(WrenError::CompileError),
@@ -196,6 +198,14 @@ impl<'wren> WrenContext<'wren> {
         WrenContext { vm, handle_tx }
     }
 
+    /// Retrieve a raw pointer to the inner VM.
+    ///
+    /// Intended to be used by generated code.
+    #[doc(hidden)]
+    pub fn vm_ptr(&mut self) -> *mut bindings::WrenVM {
+        self.vm as *mut _
+    }
+
     #[inline]
     pub fn get_slot<T>(&mut self, index: i32) -> Option<T::Output>
     where
@@ -205,13 +215,13 @@ impl<'wren> WrenContext<'wren> {
     }
 
     #[inline]
-    pub fn get_foreign_cell<T>(&mut self, index: i32) -> Option<&'wren mut ::std::cell::RefCell<T>>
+    pub fn get_foreign_cell<T>(&mut self, index: i32) -> Option<&'wren WrenCell<T>>
     where
-        T: class::WrenForeignClass,
+        T: 'static + WrenForeignClass,
     {
-        let foreign_ptr: *mut ::std::cell::RefCell<T> =
+        let foreign_ptr: *mut WrenCell<T> =
             unsafe { bindings::wrenGetSlotForeign(self.vm, index) as _ };
-        let foreign_mut: &mut ::std::cell::RefCell<T> = unsafe { foreign_ptr.as_mut().unwrap() };
+        let foreign_mut: &mut WrenCell<T> = unsafe { foreign_ptr.as_mut().unwrap() };
         Some(foreign_mut)
     }
 
@@ -324,83 +334,20 @@ impl<'wren> WrenContext<'wren> {
         unsafe { bindings::wrenHasModule(self.vm, c_module.as_ptr()) }
     }
 
+    /// Retrieve the channel sender for Wren handles that need to be released.
     pub fn destructor_sender(&self) -> Sender<*mut bindings::WrenHandle> {
         self.handle_tx.clone()
     }
 
-    /// # Unimplemented!
-    ///
-    /// This is currently not possible, because we can't get a handle to the foreign
-    /// value that has been allocated.
-    ///
-    /// Moves the given [`WrenForeignClass`] instance, with `'static` type, into Wren.
-    ///
-    /// Once a value is moved into Wren, it cannot be moved out. Only a
-    /// mutable reference can be retrieved as a receiver to one of its Rust
-    /// methods.
-    ///
-    /// The foreign class binding must be registered for the type to be
-    /// moved into Wren.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the foreign class binding cannot be found.
-    ///
-    /// # Implementation
-    ///
-    /// Allocates space in Wren's heap to contain the value.
-    #[doc(hidden)]
-    pub fn create_static<T>(&mut self, class: T) -> WrenRef<'wren>
-    where
-        T: 'static + class::WrenForeignClass,
-    {
-        // To allocate a new foreign object, we must first lookup its class.
-        let userdata = unsafe { WrenVm::get_user_data(self.vm).unwrap() }; // TODO: Return Error
-        let module_name = userdata
-            .foreign
-            .reverse
-            .get(&TypeId::of::<T>())
-            .unwrap()
-            .module
-            .as_str();
-        let class_name = <T as class::WrenForeignClass>::NAME;
+    /// Trigger the VM garbage collector.
+    pub fn collect_garbage(&mut self) {
+        unsafe {
+            bindings::wrenCollectGarbage(self.vm);
+        }
+    }
 
-        // Class declarations are simple variables in Wren.
-        let class_ref = self.get_var(module_name, class_name).unwrap();
-
-        // Prepare for foreign value allocation.
-        self.ensure_slots(1);
-        ToWren::put(class_ref, self, 0);
-
-        // Wren wants to own the memory containing the data backing the foreign function.
-        let wren_ptr: *mut RefCell<T> = unsafe {
-            bindings::wrenSetSlotNewForeign(self.vm, 0, 0, ::std::mem::size_of::<T>() as usize) as _
-        };
-        let wren_val: &mut RefCell<T> = unsafe { wren_ptr.as_mut().unwrap() };
-
-        // Retrieve a handle to the allocated object, to be returned to the caller.
-        // FIXME: Slot 0 contains FOREIGN and not HANDLE
-        // let handle = unsafe { bindings::wrenGetSlotHandle(self.vm, 0).as_mut().unwrap() };
-
-        // All foreign classes are wrapped in RefCell, because it's possible to
-        // borrow the value out of Wren multiple times.
-        let mut rust_val = RefCell::new(class);
-
-        // Swap the constructed object on the stack with the heap memory
-        // owned by Wren.
-        ::std::mem::swap(wren_val, &mut rust_val);
-
-        // After the swap, this now contains the value Wren wrote after it's allocation,
-        // which is zeroed. However it's safer to treat it as undefined. Dropping a value
-        // that may contain resources like boxes or file handles could cause issues if
-        // it's zeroed or filled with junk.
-        //
-        // We're intentionally disabling drop since it wasn't initialised by Rust.
-        ::std::mem::forget(rust_val);
-
-        // Return new value as WrenHandle.
-        // WrenRef::new(handle, self.destructor_sender())
-        unimplemented!()
+    pub fn user_data(&mut self) -> Option<&UserData> {
+        unsafe { WrenVm::get_user_data(self.vm).map(|u| &*u) }
     }
 }
 
@@ -417,11 +364,13 @@ pub struct ModuleBuilder<'a> {
 impl<'a> ModuleBuilder<'a> {
     pub fn register<T>(&mut self)
     where
-        T: class::WrenForeignClass,
+        T: WrenForeignClass,
     {
         T::register(self);
     }
 
+    /// Intended to be used by generated code.
+    #[doc(hidden)]
     pub fn add_class_binding<S>(&mut self, class: S, binding: ForeignClass)
     where
         S: Into<Cow<'a, str>>,
@@ -433,9 +382,11 @@ impl<'a> ModuleBuilder<'a> {
         self.foreign.classes.insert(key, binding);
     }
 
+    /// Intended to be used by generated code.
+    #[doc(hidden)]
     pub fn add_reverse_class_lookup<T>(&mut self)
     where
-        T: 'static + class::WrenForeignClass,
+        T: 'static + WrenForeignClass,
     {
         let key = ForeignClassKey {
             module: self.module.to_owned(),
@@ -444,6 +395,8 @@ impl<'a> ModuleBuilder<'a> {
         self.foreign.reverse.insert(TypeId::of::<T>(), key);
     }
 
+    /// Intended to be used by generated code.
+    #[doc(hidden)]
     pub fn add_method_binding<S>(&mut self, class: S, binding: ForeignMethod)
     where
         S: Into<Cow<'a, str>>,
