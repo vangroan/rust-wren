@@ -1,7 +1,7 @@
 #[macro_use]
 extern crate rust_wren_derive;
 
-use rust_wren::{HelloMacro, WrenBuilder, WrenForeignClass};
+use rust_wren::{prelude::*, HelloMacro};
 
 const SOURCE: &str = r##"
 System.print("I am running in a VM!")
@@ -40,7 +40,7 @@ impl ProcFoo {
 }
 
 fn main() {
-    let vm = WrenBuilder::new()
+    let mut vm = WrenBuilder::new()
         .with_module("engine", |module| {
             module.register::<ProcFoo>();
         })

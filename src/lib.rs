@@ -6,7 +6,7 @@
 #[doc(hidden)]
 pub mod bindings;
 
-mod class;
+pub mod class;
 pub mod foreign;
 pub mod handle;
 mod runtime;
@@ -14,10 +14,10 @@ mod types;
 pub mod value;
 mod vm;
 
-pub use class::*;
 pub use vm::*;
 
 pub mod prelude {
+    pub use crate::class::{WrenCell, WrenForeignClass};
     pub use crate::handle::WrenRef;
     pub use crate::value::FromWren;
     pub use crate::vm::{WrenBuilder, WrenVm};

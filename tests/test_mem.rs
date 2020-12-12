@@ -27,7 +27,7 @@ impl Drop for NotZero {
 /// Fails if an uninitialised value is dropped.
 #[test]
 fn test_memory_safety() {
-    let vm = WrenBuilder::new()
+    let mut vm = WrenBuilder::new()
         .with_module("test_memory_safety", |m| {
             m.register::<NotZero>();
         })

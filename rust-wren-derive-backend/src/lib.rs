@@ -5,5 +5,5 @@
 mod class;
 mod method;
 
-pub use class::WrenClassArgs;
+pub use class::{gen_from_wren_impl, gen_to_wren_impl, WrenClassArgs};
 pub use method::build_wren_methods;

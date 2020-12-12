@@ -1,7 +1,15 @@
 use proc_macro::TokenStream;
 use quote::quote;
-use rust_wren_derive_backend::{build_wren_methods, WrenClassArgs};
-use syn::{self, parse_macro_input, Expr, ItemImpl, ItemStruct};
+use rust_wren_derive_backend::{
+    build_wren_methods, gen_from_wren_impl, gen_to_wren_impl, WrenClassArgs,
+};
+use syn::{
+    self,
+    parse::{Parse, ParseStream},
+    parse_macro_input,
+    punctuated::Punctuated,
+    Expr, Ident, ItemImpl, ItemStruct, Token,
+};
 
 #[proc_macro_derive(HelloMacro)]
 pub fn hello_macro_derive(input: TokenStream) -> TokenStream {
@@ -48,10 +56,13 @@ fn impl_wren_class(attr: WrenClassArgs, item: ItemStruct) -> TokenStream {
         struct_ident.to_string()
     };
 
+    let from_wren_impl = gen_from_wren_impl(struct_ident.clone());
+    let to_wren_impl = gen_to_wren_impl(struct_ident.clone());
+
     let gen = quote! {
         #item
 
-        impl rust_wren::WrenForeignClass for #struct_ident {
+        impl rust_wren::class::WrenForeignClass for #struct_ident {
             const NAME: &'static str = #class_name;
 
             fn register(bindings: &mut rust_wren::ModuleBuilder) {
@@ -60,12 +71,16 @@ fn impl_wren_class(attr: WrenClassArgs, item: ItemStruct) -> TokenStream {
                     allocate: <Self>::__wren_allocate,
                     finalize: <Self>::__wren_finalize,
                 };
-                let class_name = <Self as rust_wren::WrenForeignClass>::NAME;
+                let class_name = <Self as rust_wren::class::WrenForeignClass>::NAME;
                 bindings.add_class_binding(class_name, foreign_class);
                 bindings.add_reverse_class_lookup::<Self>();
                 Self::__wren_register_methods(bindings);
             }
         }
+
+        #from_wren_impl
+
+        #to_wren_impl
     };
 
     gen.into()
@@ -78,4 +93,90 @@ pub fn wren_methods(_: TokenStream, item: TokenStream) -> TokenStream {
     build_wren_methods(ast)
         .expect("Failed to generate wren method implementations")
         .into()
+}
+
+/// Generate an implementation for converting a tuple struct to Wren slots.
+#[proc_macro]
+pub fn generate_tuple_to_wren(args: TokenStream) -> TokenStream {
+    let ToWrenSpec { type_idents } = parse_macro_input!(args as ToWrenSpec);
+
+    let var_idents = type_idents
+        .iter()
+        .map(|ident| Ident::new(&ident.to_string().to_ascii_lowercase(), ident.span()))
+        .collect::<Vec<Ident>>();
+
+    let where_idents = type_idents
+        .iter()
+        .map(|ident| {
+            quote! { #ident :ToWren }
+        })
+        .collect::<Vec<_>>();
+
+    let slots_idents = type_idents
+        .iter()
+        .zip(var_idents.iter())
+        .enumerate()
+        .map(|(idx, (ty, var))| {
+            let idx = idx as i32;
+            quote! {
+                #ty::put(#var, ctx, slot + #idx)
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let size_hint = type_idents.len();
+
+    let gen = quote! {
+        impl<#(#type_idents),*> ToWren for (#(#type_idents),* ,)
+        where
+            #(#where_idents),*
+        {
+            fn put(self, ctx: &mut WrenContext, slot: i32) {
+                let (#(#var_idents),* ,) = self;
+                #(#slots_idents);*
+            }
+
+            fn size_hint(&self) -> usize {
+                #size_hint
+            }
+        }
+    };
+
+    gen.into()
+}
+
+#[derive(Default)]
+struct ToWrenSpec {
+    /// Struct type identifiers.
+    type_idents: Vec<Ident>,
+}
+
+impl Parse for ToWrenSpec {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut spec = ToWrenSpec::default();
+        let punctuated = Punctuated::<Expr, Token![,]>::parse_terminated(input)?;
+
+        for expr in punctuated.into_iter() {
+            match expr {
+                Expr::Path(expr_path) => {
+                    if let Some(ident) = expr_path.path.get_ident().cloned() {
+                        spec.type_idents.push(ident);
+                    } else {
+                        return Err(syn::Error::new_spanned(
+                            expr_path,
+                            "Generate arguments must be identifiers.",
+                        ));
+                    }
+                }
+                _ => {
+                    return Err(syn::Error::new_spanned(
+                        expr,
+                        "Generate arguments must be identifiers.",
+                    ));
+                }
+            }
+        }
+
+        Ok(spec)
+    }
 }

@@ -27,7 +27,7 @@ fn test_has_variable() {
 fn test_has_module() {
     let mut vm = WrenBuilder::new().build();
 
-    vm.interpret("test_context", "");
+    vm.interpret("test_context", "").expect("Interpret failed");
 
     vm.context(|ctx| {
         assert!(ctx.has_module("test_context"));
