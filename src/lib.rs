@@ -1,3 +1,23 @@
+//! # High level bindings to Wren
+//!
+//! [wren.io](https://wren.io/)
+//!
+//! ## Goals
+//!
+//! - high level interface; safety; not-performance
+//!
+//! ## Language interoperability
+//!
+//! - Current limitation of foreign classes only
+//! - Rust can run interpret to execute Wren code
+//! - Rust can call Wren function handles
+//! - Wren interfaces with Rust via foreign method calls
+//! - Value conversion happen during
+//!
+//! ## Safety
+//!
+//! - Wren has bugs
+//! - Inner mutability (foreign value stored in RefCell)
 #[allow(non_upper_case_globals)]
 #[allow(non_camel_case_types)]
 #[allow(non_snake_case)]

@@ -1,3 +1,4 @@
+//! Core virtual machine.
 use crate::{
     bindings,
     class::{WrenCell, WrenForeignClass},
@@ -6,7 +7,7 @@ use crate::{
     runtime, types,
     value::FromWren,
 };
-use log::trace;
+use log::{trace, debug};
 use std::{
     any::TypeId,
     borrow::{Borrow, Cow},
@@ -40,8 +41,8 @@ impl WrenVm {
     }
 
     pub fn context<F>(&mut self, func: F)
-    where
-        F: FnOnce(&mut WrenContext),
+        where
+            F: FnOnce(&mut WrenContext),
     {
         let vm = unsafe { self.vm.as_mut().unwrap() };
         let _guard = ContextGuard { vm: self };
@@ -57,7 +58,7 @@ impl WrenVm {
 
     /// Utility function for extracting the concrete [`UserData`] instance from
     /// the given [`WrenVM`].
-    pub(crate) unsafe fn get_user_data<'a>(vm: *mut bindings::WrenVM) -> Option<&'a mut UserData> {
+    pub unsafe fn get_user_data<'a>(vm: *mut bindings::WrenVM) -> Option<&'a mut UserData> {
         (bindings::wrenGetUserData(vm) as *mut UserData).as_mut()
     }
 
@@ -102,6 +103,7 @@ impl<'wren> Drop for ContextGuard<'wren> {
 }
 
 #[derive(Default)]
+#[must_use = "Wren VM was not build. Call build() on the builder instance."]
 pub struct WrenBuilder {
     foreign: ForeignBindings,
 }
@@ -118,9 +120,9 @@ impl WrenBuilder {
     }
 
     pub fn with_module<'a, S, F>(mut self, module: S, func: F) -> Self
-    where
-        S: Into<Cow<'a, str>>,
-        F: FnOnce(&mut ModuleBuilder),
+        where
+            S: Into<Cow<'a, str>>,
+            F: FnOnce(&mut ModuleBuilder),
     {
         let module_cow = module.into();
         let module_name = module_cow.borrow();
@@ -208,16 +210,16 @@ impl<'wren> WrenContext<'wren> {
 
     #[inline]
     pub fn get_slot<T>(&mut self, index: i32) -> Option<T::Output>
-    where
-        T: FromWren<'wren>,
+        where
+            T: FromWren<'wren>,
     {
         T::get_slot(self, index)
     }
 
     #[inline]
     pub fn get_foreign_cell<T>(&mut self, index: i32) -> Option<&'wren WrenCell<T>>
-    where
-        T: 'static + WrenForeignClass,
+        where
+            T: 'static + WrenForeignClass,
     {
         let foreign_ptr: *mut WrenCell<T> =
             unsafe { bindings::wrenGetSlotForeign(self.vm, index) as _ };
@@ -258,6 +260,7 @@ impl<'wren> WrenContext<'wren> {
     /// - [#717 When using wrenGetVariable, it now returns an int to inform you of failure](https://github.com/wren-lang/wren/pull/717)
     /// - [#601 wrenGetVariable does not seem to return a sane value](https://github.com/wren-lang/wren/issues/601)
     pub fn get_var(&mut self, module: &str, name: &str) -> Option<WrenRef<'wren>> {
+        trace!("get_var({}, {})", module, name);
         let c_module = CString::new(module).expect("Module name contains a null byte");
         let c_name = CString::new(name).expect("Name name contains a null byte");
 
@@ -271,12 +274,14 @@ impl<'wren> WrenContext<'wren> {
         if !var_exists {
             return None;
         }
+        trace!("Module and variable exists {}.{}", module, name);
 
         self.ensure_slots(1);
 
         unsafe {
             bindings::wrenGetVariable(self.vm, c_module.as_ptr(), c_name.as_ptr(), 0);
         }
+        trace!("Variable retrieved {}.{}", module, name);
 
         // If the module or variable don't exist, there's junk in the slot.
         self.get_slot::<WrenRef<'wren>>(0)
@@ -300,6 +305,7 @@ impl<'wren> WrenContext<'wren> {
     /// });
     /// ```
     pub fn has_var(&mut self, module: &str, name: &str) -> bool {
+        trace!("has_var({}, {})", module, name);
         let c_module = CString::new(module).expect("Module name contains a null byte");
         let c_name = CString::new(name).expect("Name name contains a null byte");
 
@@ -329,6 +335,7 @@ impl<'wren> WrenContext<'wren> {
     /// });
     /// ```
     pub fn has_module(&mut self, module: &str) -> bool {
+        trace!("has_module({})", module);
         let c_module = CString::new(module).expect("Module name contains a null byte");
 
         unsafe { bindings::wrenHasModule(self.vm, c_module.as_ptr()) }
@@ -363,8 +370,8 @@ pub struct ModuleBuilder<'a> {
 
 impl<'a> ModuleBuilder<'a> {
     pub fn register<T>(&mut self)
-    where
-        T: WrenForeignClass,
+        where
+            T: WrenForeignClass,
     {
         T::register(self);
     }
@@ -372,8 +379,8 @@ impl<'a> ModuleBuilder<'a> {
     /// Intended to be used by generated code.
     #[doc(hidden)]
     pub fn add_class_binding<S>(&mut self, class: S, binding: ForeignClass)
-    where
-        S: Into<Cow<'a, str>>,
+        where
+            S: Into<Cow<'a, str>>,
     {
         let key = ForeignClassKey {
             module: self.module.to_owned(),
@@ -385,8 +392,8 @@ impl<'a> ModuleBuilder<'a> {
     /// Intended to be used by generated code.
     #[doc(hidden)]
     pub fn add_reverse_class_lookup<T>(&mut self)
-    where
-        T: 'static + WrenForeignClass,
+        where
+            T: 'static + WrenForeignClass,
     {
         let key = ForeignClassKey {
             module: self.module.to_owned(),
@@ -398,8 +405,8 @@ impl<'a> ModuleBuilder<'a> {
     /// Intended to be used by generated code.
     #[doc(hidden)]
     pub fn add_method_binding<S>(&mut self, class: S, binding: ForeignMethod)
-    where
-        S: Into<Cow<'a, str>>,
+        where
+            S: Into<Cow<'a, str>>,
     {
         let key = ForeignMethodKey {
             module: self.module.to_owned(),

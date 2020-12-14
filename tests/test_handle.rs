@@ -151,3 +151,37 @@ fn test_non_existing() {
         assert!(ctx.get_var("unknown", "m").is_none());
     });
 }
+
+/// Check that a fiber is passed as a WrenHandle.
+#[test]
+fn test_fiber_handle() {
+    #[wren_class]
+    struct CallMe;
+
+    #[wren_methods]
+    impl CallMe {
+        #[construct]
+        fn new() -> Self {
+            CallMe
+        }
+
+        fn call(fiber: WrenRef<'_>) {
+            println!("Got handle {:?}", fiber);
+        }
+
+    }
+    let mut vm = WrenBuilder::new()
+        .with_module("test_handle", |module| {
+            module.register::<CallMe>();
+        })
+        .build();
+
+    vm.interpret("test_handle", r#"
+    foreign class CallMe {
+        construct new() {}
+        foreign static call(fiber)
+    }
+
+    CallMe.call(Fiber.current)
+    "#).unwrap();
+}

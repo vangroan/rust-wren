@@ -67,8 +67,10 @@ impl WrenSequenceProtocol for WrenVector2 {
 ## TODO
 
 - [x] Lookup for foreign methods must take `is_static` into account.
-- [ ] Generate a `ToWren` implementation for each `WrenForeignClass`. Requires lookup of class variable, and is mostly the same as `__wren_allocate`.
-- [ ] Methods must handle arguments that implement `WrenForeignClass`, but are not the receiver.
+- [x] Generate a `ToWren` implementation for each `WrenForeignClass`. Requires lookup of class variable, and is mostly the same as `__wren_allocate`.
+- [x] Methods must handle arguments that implement `WrenForeignClass`, but are not the receiver. 
+- [ ] Implement properties
+- [ ] Permit `construct` method to be omitted; generate `__wren_allocate` using `WrenForeignClass::default`
 - [ ] Store foreign method bindings in `inventory`.
 - [ ] Wren operator methods.
 - [ ] Non-static userdata borrowed within scope.

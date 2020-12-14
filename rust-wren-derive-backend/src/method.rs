@@ -131,7 +131,7 @@ fn gen_wren_construct(_cls: &Type, method: &ImplItemMethod) -> syn::Result<Token
             let mut ctx = rust_wren::WrenContext::new(vm);
 
             // TODO: Constructor method is not required, so make this optional.
-            // TODO: Validate return type of consturctor.
+            // TODO: Validate return type of constructor.
             let mut rust_val: WrenCell<Self> = WrenCell::new(<Self>::#new_method(#(#args),*));
 
             // Swap the constructed object on the stack with the heap memory
@@ -302,7 +302,7 @@ fn gen_register(wrappers: &[WrenFnSpec]) -> syn::Result<TokenStream> {
         .collect::<Vec<_>>();
 
     Ok(quote! {
-        fn __wren_register_methods(builder: &mut rust_wren::ModuleBuilder) {
+        extern "C" fn __wren_register_methods(builder: &mut rust_wren::ModuleBuilder) {
             #(#calls);*
         }
     })
