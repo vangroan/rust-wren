@@ -6,6 +6,7 @@ use crate::{
 use std::{borrow::Cow, ffi::CString, marker::PhantomData, sync::mpsc::Sender};
 
 /// Temporary borrow of a Wren handle.
+#[derive(Debug)]
 pub struct WrenRef<'wren> {
     handle: *mut bindings::WrenHandle,
     destructors: Sender<*mut bindings::WrenHandle>,
@@ -27,7 +28,7 @@ impl<'wren> WrenRef<'wren> {
 
 impl<'wren> Drop for WrenRef<'wren> {
     fn drop(&mut self) {
-        println!("Dropping WrenRef {:?}", self.handle);
+        log::trace!("Dropping WrenRef {:?}", self.handle);
         self.destructors
             .send(self.handle)
             .unwrap_or_else(|err| eprintln!("{}", err));
@@ -165,14 +166,14 @@ impl<'wren> WrenCallRef<'wren> {
         ctx.ensure_slots(1 + args.size_hint());
         // FIXME: Move. We also don't want to copy WrenHandle
         // self.receiver.put(ctx, 0);
-        println!("Set slot receiver {:?}", self.receiver.handle);
+        log::trace!("Set slot receiver {:?}", self.receiver.handle);
         unsafe {
             bindings::wrenSetSlotHandle(ctx.vm, 0, self.receiver.handle);
         }
 
         args.put(ctx, 1);
 
-        println!("wrenCall {:?}", self.func.handle.handle);
+        log::trace!("wrenCall {:?}", self.func.handle.handle);
         let _result = unsafe { bindings::wrenCall(ctx.vm, self.func.handle.handle) };
 
         // TODO: Check result

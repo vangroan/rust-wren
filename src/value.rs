@@ -141,7 +141,7 @@ where
         verify_slot!(ctx, slot_num, WrenType::Foreign);
         let void_ptr: *const c_void =
             unsafe { bindings::wrenGetSlotForeign(ctx.vm, slot_num) as _ };
-        WrenCell::<T>::from_ptr(void_ptr)
+        unsafe { WrenCell::<T>::from_ptr(void_ptr) }
     }
 }
 
@@ -171,7 +171,7 @@ where
     fn get_slot(ctx: &mut WrenContext, slot_num: i32) -> Option<Self::Output> {
         verify_slot!(ctx, slot_num, WrenType::Foreign);
         let void_ptr: *mut c_void = unsafe { bindings::wrenGetSlotForeign(ctx.vm, slot_num) as _ };
-        WrenCell::<T>::from_ptr_mut(void_ptr)
+        unsafe { WrenCell::<T>::from_ptr_mut(void_ptr) }
     }
 }
 

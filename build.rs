@@ -1,7 +1,10 @@
 extern crate bindgen;
 
-use std::io::{self, Write};
 use std::{env, path::PathBuf, process::Command};
+use std::{
+    fs,
+    io::{self, Write},
+};
 
 fn build_win64() {
     println!("Building Wren");
@@ -45,21 +48,31 @@ fn build_win64() {
     if !output.status.success() {
         panic!("MSBuild Failed");
     }
+
+    let in_path = PathBuf::from(r"wren/lib");
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let filename = if env::var("PROFILE").expect("PROFILE not set") == "debug" {
+        "wren_d.lib"
+    } else {
+        "wren.lib"
+    };
+    fs::copy(in_path.join(filename), out_path.join(filename)).expect("Wren lib copy failed");
 }
 
 fn generate_bindings() {
     let profile = env::var("PROFILE").expect("PROFILE not set");
 
-    println!("cargo:rustc-link-search=wren/lib");
+    // println!("cargo:rustc-link-search=wren/lib");
+    println!("cargo:rustc-link-search={}", env::var("OUT_DIR").unwrap());
 
     // Tell cargo to tell rustc to link the wren
     // shared library.
-    let debug_suffix = if profile.as_str() == "debug" {
-        "_d"
+    let lib_filename = if profile.as_str() == "debug" {
+        "wren_d"
     } else {
-        ""
+        "wren"
     };
-    println!("cargo:rustc-link-lib=wren{}", debug_suffix);
+    println!("cargo:rustc-link-lib={}", lib_filename);
 
     // Tell cargo to invalidate the built crate whenever the wrapper changes
     println!("cargo:rerun-if-changed=wrapper.h");

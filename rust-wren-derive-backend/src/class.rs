@@ -52,6 +52,7 @@ pub fn gen_to_wren_impl(class: Ident) -> TokenStream {
         impl rust_wren::value::ToWren for #class {
             fn put(self, ctx: &mut rust_wren::WrenContext, slot: i32) {
                 use rust_wren::{prelude::*, bindings, value::ToWren};
+                assert!((slot as usize) < ctx.slot_count());
 
                 // To allocate a new foreign object, we must first lookup its class.
                 let module_name = {
@@ -77,7 +78,7 @@ pub fn gen_to_wren_impl(class: Ident) -> TokenStream {
                         ctx.vm_ptr(),
                         slot as i32,
                         slot as i32,
-                        ::std::mem::size_of::<Self>() as usize,
+                        ::std::mem::size_of::<WrenCell<Self>>() as usize,
                     ) as _
                 };
                 let wren_val: &mut WrenCell<Self> = unsafe { wren_ptr.as_mut().unwrap() };

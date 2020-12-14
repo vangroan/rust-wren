@@ -2,6 +2,7 @@
 //!
 //! Allows Wren to lookup Rust types at runtime.
 use crate::{bindings, WrenVm};
+use log::{trace, warn};
 use std::{
     any::TypeId,
     collections::HashMap,
@@ -39,6 +40,7 @@ pub struct ForeignMethodKey {
 }
 
 /// Binding to Rust method exposed to Wren.
+#[derive(Debug)]
 pub struct ForeignMethod {
     pub is_static: bool,
     pub arity: usize,
@@ -52,6 +54,14 @@ impl ForeignBindings {
             classes: HashMap::new(),
             methods: HashMap::new(),
             reverse: HashMap::new(),
+        }
+    }
+
+    /// Trace print all registered bindings.
+    pub fn dump_bindings(&self) {
+        trace!("Foreign method bindings");
+        for (key, val) in self.methods.iter() {
+            trace!("{:?} {:?}", key, val);
         }
     }
 
@@ -77,6 +87,7 @@ impl ForeignBindings {
                 .to_string_lossy()
                 .to_string()
         };
+        trace!("bind_foreign_class {} {}", module, class);
 
         let (allocate, finalize) = userdata
             .foreign
@@ -87,7 +98,7 @@ impl ForeignBindings {
                 (Some(allocate), Some(finalize))
             })
             .unwrap_or_else(|| {
-                eprintln!("Warning: Foreign class not found");
+                warn!("Warning: Foreign class not found. Did you forget to register it with the builder?");
                 (None, None)
             });
 
@@ -131,11 +142,12 @@ impl ForeignBindings {
             sig,
             is_static,
         };
+        trace!("bind_foreign_method {:?}", key);
 
         let method = userdata.foreign.methods.get(&key).map(|m| m.func);
 
         if method.is_none() {
-            eprintln!("Warning: Foreign method not found {:?}", key);
+            warn!("Warning: Foreign method not found {:?}. Did you forget to register it with the builder?", key);
         }
 
         method
