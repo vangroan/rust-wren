@@ -67,11 +67,7 @@ fn generate_bindings() {
 
     // Tell cargo to tell rustc to link the wren
     // shared library.
-    let lib_filename = if profile.as_str() == "debug" {
-        "wren_d"
-    } else {
-        "wren"
-    };
+    let lib_filename = if profile.as_str() == "debug" { "wren_d" } else { "wren" };
     println!("cargo:rustc-link-lib={}", lib_filename);
 
     // Tell cargo to invalidate the built crate whenever the wrapper changes

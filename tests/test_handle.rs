@@ -1,7 +1,8 @@
 use rust_wren::{
-    handle::{FnSymbol, WrenCallRef},
+    handle::{FnSymbolRef, WrenCallHandle, WrenCallRef, WrenHandle},
     prelude::*,
 };
+use std::rc::Rc;
 
 const CLASS: &str = r#"
 class TestHandle {
@@ -61,7 +62,7 @@ fn test_wren_call() {
     vm.context(|ctx| {
         // Static call looks up class declaration as variable.
         let test_class = ctx.get_var("test_handle", "TestHandle").unwrap();
-        let print_fn = FnSymbol::compile(ctx, "print()");
+        let print_fn = FnSymbolRef::compile(ctx, "print()").unwrap();
         let call_handle = WrenCallRef::new(test_class, print_fn);
 
         println!("Rust: Calling TestHandle.print()");
@@ -71,17 +72,12 @@ fn test_wren_call() {
     vm.context(|ctx| {
         // Static call looks up class declaration as variable.
         let test_class = ctx.get_var("test_handle", "TestHandle").unwrap();
-        let print_fn = FnSymbol::compile(ctx, "withArgs(_,_,_)");
+        let print_fn = FnSymbolRef::compile(ctx, "withArgs(_,_,_)").unwrap();
         let call_handle = WrenCallRef::new(test_class, print_fn);
 
         println!("Rust: Calling TestHandle.withArgs(_,_,_)");
-        assert_eq!(
-            call_handle.call::<_, f64>(ctx, (3.0, 7.0, 11.0)),
-            Some(21.0)
-        );
+        assert_eq!(call_handle.call::<_, f64>(ctx, (3.0, 7.0, 11.0)), Some(21.0));
     });
-
-    drop(vm);
 }
 
 /// Should call method on foreign class.
@@ -92,13 +88,12 @@ fn test_foreign_call() {
         .build();
 
     vm.interpret("test_handle", MOVE_ME).unwrap();
-    vm.interpret("test_handle", r#"var m = MoveMe.new(7)"#)
-        .unwrap();
+    vm.interpret("test_handle", r#"var m = MoveMe.new(7)"#).unwrap();
 
     vm.context(|ctx| {
         // Instance method
         let move_me_obj = ctx.get_var("test_handle", "m").unwrap();
-        let func = FnSymbol::compile(ctx, "inner()");
+        let func = FnSymbolRef::compile(ctx, "inner()").unwrap();
         let call_handle = WrenCallRef::new(move_me_obj, func);
 
         println!("Rust: Calling MoveMe.inner()");
@@ -114,13 +109,12 @@ fn test_call_handle_with_arguments() {
         .build();
 
     vm.interpret("test_handle", MOVE_ME).unwrap();
-    vm.interpret("test_handle", r#"var m = MoveMe.new(11)"#)
-        .unwrap();
+    vm.interpret("test_handle", r#"var m = MoveMe.new(11)"#).unwrap();
 
     vm.context(|ctx| {
         // Instance method
         let move_me_obj = ctx.get_var("test_handle", "m").unwrap();
-        let func = FnSymbol::compile(ctx, "one(_)");
+        let func = FnSymbolRef::compile(ctx, "one(_)").unwrap();
         let call_handle = WrenCallRef::new(move_me_obj, func);
 
         println!("Rust: Calling MoveMe.one(_)");
@@ -131,12 +125,39 @@ fn test_call_handle_with_arguments() {
     vm.context(|ctx| {
         // Instance method
         let move_me_obj = ctx.get_var("test_handle", "m").unwrap();
-        let func = FnSymbol::compile(ctx, "two(_,_)");
+        let func = FnSymbolRef::compile(ctx, "two(_,_)").unwrap();
         let call_handle = WrenCallRef::new(move_me_obj, func);
 
         println!("Rust: Calling MoveMe.two(_,_)");
         let result: f64 = call_handle.call::<_, f64>(ctx, (7.0, 3.0)).unwrap();
         assert_eq!(result, 21.0);
+    });
+}
+
+/// Check that WrenRef can be passed multiple times.
+#[test]
+fn test_multiple_arg_passes() {
+    let mut vm = WrenBuilder::new().build();
+
+    vm.interpret(
+        "test_handle",
+        r#"
+    class Test {
+        static calc(val) { val * val }
+    }
+
+    var a = 4
+    "#,
+    )
+    .expect("Interpret failed");
+
+    vm.context(|ctx| {
+        let call_ref = ctx.make_call_ref("test_handle", "Test", "calc(_)").unwrap();
+        let arg_a = ctx.get_var("test_handle", "a").unwrap();
+
+        call_ref.call::<_, f64>(ctx, &arg_a).unwrap();
+        call_ref.call::<_, f64>(ctx, &arg_a).unwrap();
+        call_ref.call::<_, f64>(ctx, &arg_a).unwrap();
     });
 }
 
@@ -168,7 +189,6 @@ fn test_fiber_handle() {
         fn call(fiber: WrenRef<'_>) {
             println!("Got handle {:?}", fiber);
         }
-
     }
     let mut vm = WrenBuilder::new()
         .with_module("test_handle", |module| {
@@ -176,12 +196,98 @@ fn test_fiber_handle() {
         })
         .build();
 
-    vm.interpret("test_handle", r#"
+    vm.interpret(
+        "test_handle",
+        r#"
     foreign class CallMe {
         construct new() {}
         foreign static call(fiber)
     }
 
     CallMe.call(Fiber.current)
-    "#).unwrap();
+    "#,
+    )
+    .unwrap();
+}
+
+#[test]
+fn test_wren_ref_leak() {
+    let mut vm = WrenBuilder::new().build();
+
+    vm.interpret(
+        "test_handle",
+        r#"
+    class Test {
+        static unwrap(val) { val }
+    }
+
+    var a = "Foo"
+    var b = "Bar"
+    "#,
+    )
+    .expect("Interpret failed");
+
+    let mut handle: Option<WrenHandle> = None;
+    vm.context(|ctx| {
+        let a_ref = ctx.get_var("test_handle", "a").unwrap();
+        handle = a_ref.leak();
+    });
+
+    assert!(handle.is_some());
+
+    vm.context(|ctx| {
+        let unwrap_fn = ctx.make_call_ref("test_handle", "Test", "unwrap(_)").unwrap();
+        let unwrapped_a = unwrap_fn.call::<_, String>(ctx, handle).unwrap(); // <-- handle drop
+
+        assert_eq!(unwrapped_a.as_str(), "Foo");
+    });
+
+    let mut rc: Option<Rc<WrenHandle>> = None;
+    vm.context(|ctx| {
+        let b_ref = ctx.get_var("test_handle", "b").unwrap();
+        rc = b_ref.leak().map(|r| Rc::new(r));
+    });
+
+    // This should be dropped by WrenVm::drop
+    let _rc_cloned = rc.clone();
+
+    vm.context(|ctx| {
+        let unwrap_fn = ctx.make_call_ref("test_handle", "Test", "unwrap(_)").unwrap();
+
+        // First call
+        let unwrapped_b1 = unwrap_fn.call::<_, String>(ctx, rc.clone()).unwrap();
+        assert_eq!(unwrapped_b1.as_str(), "Bar");
+
+        // Second call
+        let unwrapped_b2 = unwrap_fn.call::<_, String>(ctx, rc).unwrap(); // <-- rc drop
+        assert_eq!(unwrapped_b2.as_str(), "Bar");
+    });
+}
+
+#[test]
+fn test_wren_call_ref_leak() {
+    let mut vm = WrenBuilder::new().build();
+
+    vm.interpret(
+        "test_handle",
+        r#"
+    class Test {
+        static calc(val) { val * val }
+    }
+    "#,
+    )
+    .expect("Interpret failed");
+
+    let mut handle: Option<WrenCallHandle> = None;
+    vm.context(|ctx| {
+        let call_ref = ctx.make_call_ref("test_handle", "Test", "calc(_)").unwrap();
+        handle = call_ref.leak();
+    });
+
+    assert!(handle.is_some());
+
+    vm.context(|ctx| {
+        let result = handle.unwrap().call::<_, f64>(ctx, 4.0).unwrap();
+        assert_eq!(result, 16.0);
+    });
 }

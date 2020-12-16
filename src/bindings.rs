@@ -146,9 +146,7 @@ fn bindgen_test_layout___crt_locale_data_public() {
         concat!("Alignment of ", stringify!(__crt_locale_data_public))
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<__crt_locale_data_public>()))._locale_pctype as *const _ as usize
-        },
+        unsafe { &(*(::std::ptr::null::<__crt_locale_data_public>()))._locale_pctype as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -158,10 +156,7 @@ fn bindgen_test_layout___crt_locale_data_public() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<__crt_locale_data_public>()))._locale_mb_cur_max as *const _
-                as usize
-        },
+        unsafe { &(*(::std::ptr::null::<__crt_locale_data_public>()))._locale_mb_cur_max as *const _ as usize },
         8usize,
         concat!(
             "Offset of field: ",
@@ -171,10 +166,7 @@ fn bindgen_test_layout___crt_locale_data_public() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<__crt_locale_data_public>()))._locale_lc_codepage as *const _
-                as usize
-        },
+        unsafe { &(*(::std::ptr::null::<__crt_locale_data_public>()))._locale_lc_codepage as *const _ as usize },
         12usize,
         concat!(
             "Offset of field: ",
@@ -246,32 +238,17 @@ fn bindgen_test_layout__Mbstatet() {
     assert_eq!(
         unsafe { &(*(::std::ptr::null::<_Mbstatet>()))._Wchar as *const _ as usize },
         0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_Mbstatet),
-            "::",
-            stringify!(_Wchar)
-        )
+        concat!("Offset of field: ", stringify!(_Mbstatet), "::", stringify!(_Wchar))
     );
     assert_eq!(
         unsafe { &(*(::std::ptr::null::<_Mbstatet>()))._Byte as *const _ as usize },
         4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_Mbstatet),
-            "::",
-            stringify!(_Byte)
-        )
+        concat!("Offset of field: ", stringify!(_Mbstatet), "::", stringify!(_Byte))
     );
     assert_eq!(
         unsafe { &(*(::std::ptr::null::<_Mbstatet>()))._State as *const _ as usize },
         6usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_Mbstatet),
-            "::",
-            stringify!(_State)
-        )
+        concat!("Offset of field: ", stringify!(_Mbstatet), "::", stringify!(_State))
     );
 }
 pub type mbstate_t = _Mbstatet;
@@ -290,10 +267,7 @@ extern "C" {
     pub fn _callnewh(_Size: usize) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    pub fn _expand(
-        _Block: *mut ::std::os::raw::c_void,
-        _Size: usize,
-    ) -> *mut ::std::os::raw::c_void;
+    pub fn _expand(_Block: *mut ::std::os::raw::c_void, _Size: usize) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
     pub fn _free_base(_Block: *mut ::std::os::raw::c_void);
@@ -314,10 +288,7 @@ extern "C" {
     pub fn _msize(_Block: *mut ::std::os::raw::c_void) -> usize;
 }
 extern "C" {
-    pub fn _realloc_base(
-        _Block: *mut ::std::os::raw::c_void,
-        _Size: usize,
-    ) -> *mut ::std::os::raw::c_void;
+    pub fn _realloc_base(_Block: *mut ::std::os::raw::c_void, _Size: usize) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
     pub fn realloc(
@@ -333,11 +304,7 @@ extern "C" {
     ) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    pub fn _recalloc(
-        _Block: *mut ::std::os::raw::c_void,
-        _Count: usize,
-        _Size: usize,
-    ) -> *mut ::std::os::raw::c_void;
+    pub fn _recalloc(_Block: *mut ::std::os::raw::c_void, _Count: usize, _Size: usize) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
     pub fn _aligned_free(_Block: *mut ::std::os::raw::c_void);
@@ -346,18 +313,10 @@ extern "C" {
     pub fn _aligned_malloc(_Size: usize, _Alignment: usize) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    pub fn _aligned_offset_malloc(
-        _Size: usize,
-        _Alignment: usize,
-        _Offset: usize,
-    ) -> *mut ::std::os::raw::c_void;
+    pub fn _aligned_offset_malloc(_Size: usize, _Alignment: usize, _Offset: usize) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    pub fn _aligned_msize(
-        _Block: *mut ::std::os::raw::c_void,
-        _Alignment: usize,
-        _Offset: usize,
-    ) -> usize;
+    pub fn _aligned_msize(_Block: *mut ::std::os::raw::c_void, _Alignment: usize, _Offset: usize) -> usize;
 }
 extern "C" {
     pub fn _aligned_offset_realloc(
@@ -520,11 +479,7 @@ extern "C" {
     ) -> errno_t;
 }
 extern "C" {
-    pub fn _itow(
-        _Value: ::std::os::raw::c_int,
-        _Buffer: *mut wchar_t,
-        _Radix: ::std::os::raw::c_int,
-    ) -> *mut wchar_t;
+    pub fn _itow(_Value: ::std::os::raw::c_int, _Buffer: *mut wchar_t, _Radix: ::std::os::raw::c_int) -> *mut wchar_t;
 }
 extern "C" {
     pub fn _ltow_s(
@@ -535,11 +490,7 @@ extern "C" {
     ) -> errno_t;
 }
 extern "C" {
-    pub fn _ltow(
-        _Value: ::std::os::raw::c_long,
-        _Buffer: *mut wchar_t,
-        _Radix: ::std::os::raw::c_int,
-    ) -> *mut wchar_t;
+    pub fn _ltow(_Value: ::std::os::raw::c_long, _Buffer: *mut wchar_t, _Radix: ::std::os::raw::c_int) -> *mut wchar_t;
 }
 extern "C" {
     pub fn _ultow_s(
@@ -560,11 +511,7 @@ extern "C" {
     pub fn wcstod(_String: *const wchar_t, _EndPtr: *mut *mut wchar_t) -> f64;
 }
 extern "C" {
-    pub fn _wcstod_l(
-        _String: *const wchar_t,
-        _EndPtr: *mut *mut wchar_t,
-        _Locale: _locale_t,
-    ) -> f64;
+    pub fn _wcstod_l(_String: *const wchar_t, _EndPtr: *mut *mut wchar_t, _Locale: _locale_t) -> f64;
 }
 extern "C" {
     pub fn wcstol(
@@ -630,21 +577,13 @@ extern "C" {
     pub fn wcstold(_String: *const wchar_t, _EndPtr: *mut *mut wchar_t) -> f64;
 }
 extern "C" {
-    pub fn _wcstold_l(
-        _String: *const wchar_t,
-        _EndPtr: *mut *mut wchar_t,
-        _Locale: _locale_t,
-    ) -> f64;
+    pub fn _wcstold_l(_String: *const wchar_t, _EndPtr: *mut *mut wchar_t, _Locale: _locale_t) -> f64;
 }
 extern "C" {
     pub fn wcstof(_String: *const wchar_t, _EndPtr: *mut *mut wchar_t) -> f32;
 }
 extern "C" {
-    pub fn _wcstof_l(
-        _String: *const wchar_t,
-        _EndPtr: *mut *mut wchar_t,
-        _Locale: _locale_t,
-    ) -> f32;
+    pub fn _wcstof_l(_String: *const wchar_t, _EndPtr: *mut *mut wchar_t, _Locale: _locale_t) -> f32;
 }
 extern "C" {
     pub fn _wtof(_String: *const wchar_t) -> f64;
@@ -737,11 +676,7 @@ extern "C" {
     ) -> ::std::os::raw::c_ulonglong;
 }
 extern "C" {
-    pub fn _wfullpath(
-        _Buffer: *mut wchar_t,
-        _Path: *const wchar_t,
-        _BufferCount: usize,
-    ) -> *mut wchar_t;
+    pub fn _wfullpath(_Buffer: *mut wchar_t, _Path: *const wchar_t, _BufferCount: usize) -> *mut wchar_t;
 }
 extern "C" {
     pub fn _wmakepath_s(
@@ -788,11 +723,7 @@ extern "C" {
     ) -> errno_t;
 }
 extern "C" {
-    pub fn _wdupenv_s(
-        _Buffer: *mut *mut wchar_t,
-        _BufferCount: *mut usize,
-        _VarName: *const wchar_t,
-    ) -> errno_t;
+    pub fn _wdupenv_s(_Buffer: *mut *mut wchar_t, _BufferCount: *mut usize, _VarName: *const wchar_t) -> errno_t;
 }
 extern "C" {
     pub fn _wgetenv(_VarName: *const wchar_t) -> *mut wchar_t;
@@ -820,11 +751,7 @@ extern "C" {
     ) -> errno_t;
 }
 extern "C" {
-    pub fn _wsearchenv(
-        _Filename: *const wchar_t,
-        _VarName: *const wchar_t,
-        _ResultPath: *mut wchar_t,
-    );
+    pub fn _wsearchenv(_Filename: *const wchar_t, _VarName: *const wchar_t, _ResultPath: *mut wchar_t);
 }
 extern "C" {
     pub fn _wsystem(_Command: *const wchar_t) -> ::std::os::raw::c_int;
@@ -852,10 +779,8 @@ extern "C" {
     pub fn abort();
 }
 extern "C" {
-    pub fn _set_abort_behavior(
-        _Flags: ::std::os::raw::c_uint,
-        _Mask: ::std::os::raw::c_uint,
-    ) -> ::std::os::raw::c_uint;
+    pub fn _set_abort_behavior(_Flags: ::std::os::raw::c_uint, _Mask: ::std::os::raw::c_uint)
+        -> ::std::os::raw::c_uint;
 }
 pub type _onexit_t = ::std::option::Option<unsafe extern "C" fn() -> ::std::os::raw::c_int>;
 extern "C" {
@@ -865,9 +790,7 @@ extern "C" {
     pub fn _onexit(_Func: _onexit_t) -> _onexit_t;
 }
 extern "C" {
-    pub fn at_quick_exit(
-        arg1: ::std::option::Option<unsafe extern "C" fn()>,
-    ) -> ::std::os::raw::c_int;
+    pub fn at_quick_exit(arg1: ::std::option::Option<unsafe extern "C" fn()>) -> ::std::os::raw::c_int;
 }
 pub type _purecall_handler = ::std::option::Option<unsafe extern "C" fn()>;
 pub type _invalid_parameter_handler = ::std::option::Option<
@@ -886,9 +809,7 @@ extern "C" {
     pub fn _get_purecall_handler() -> _purecall_handler;
 }
 extern "C" {
-    pub fn _set_invalid_parameter_handler(
-        _Handler: _invalid_parameter_handler,
-    ) -> _invalid_parameter_handler;
+    pub fn _set_invalid_parameter_handler(_Handler: _invalid_parameter_handler) -> _invalid_parameter_handler;
 }
 extern "C" {
     pub fn _get_invalid_parameter_handler() -> _invalid_parameter_handler;
@@ -964,22 +885,12 @@ fn bindgen_test_layout__div_t() {
     assert_eq!(
         unsafe { &(*(::std::ptr::null::<_div_t>())).quot as *const _ as usize },
         0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_div_t),
-            "::",
-            stringify!(quot)
-        )
+        concat!("Offset of field: ", stringify!(_div_t), "::", stringify!(quot))
     );
     assert_eq!(
         unsafe { &(*(::std::ptr::null::<_div_t>())).rem as *const _ as usize },
         4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_div_t),
-            "::",
-            stringify!(rem)
-        )
+        concat!("Offset of field: ", stringify!(_div_t), "::", stringify!(rem))
     );
 }
 pub type div_t = _div_t;
@@ -1004,22 +915,12 @@ fn bindgen_test_layout__ldiv_t() {
     assert_eq!(
         unsafe { &(*(::std::ptr::null::<_ldiv_t>())).quot as *const _ as usize },
         0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_ldiv_t),
-            "::",
-            stringify!(quot)
-        )
+        concat!("Offset of field: ", stringify!(_ldiv_t), "::", stringify!(quot))
     );
     assert_eq!(
         unsafe { &(*(::std::ptr::null::<_ldiv_t>())).rem as *const _ as usize },
         4usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_ldiv_t),
-            "::",
-            stringify!(rem)
-        )
+        concat!("Offset of field: ", stringify!(_ldiv_t), "::", stringify!(rem))
     );
 }
 pub type ldiv_t = _ldiv_t;
@@ -1044,22 +945,12 @@ fn bindgen_test_layout__lldiv_t() {
     assert_eq!(
         unsafe { &(*(::std::ptr::null::<_lldiv_t>())).quot as *const _ as usize },
         0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_lldiv_t),
-            "::",
-            stringify!(quot)
-        )
+        concat!("Offset of field: ", stringify!(_lldiv_t), "::", stringify!(quot))
     );
     assert_eq!(
         unsafe { &(*(::std::ptr::null::<_lldiv_t>())).rem as *const _ as usize },
         8usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_lldiv_t),
-            "::",
-            stringify!(rem)
-        )
+        concat!("Offset of field: ", stringify!(_lldiv_t), "::", stringify!(rem))
     );
 }
 pub type lldiv_t = _lldiv_t;
@@ -1088,50 +979,28 @@ extern "C" {
     pub fn div(_Numerator: ::std::os::raw::c_int, _Denominator: ::std::os::raw::c_int) -> div_t;
 }
 extern "C" {
-    pub fn ldiv(_Numerator: ::std::os::raw::c_long, _Denominator: ::std::os::raw::c_long)
-        -> ldiv_t;
+    pub fn ldiv(_Numerator: ::std::os::raw::c_long, _Denominator: ::std::os::raw::c_long) -> ldiv_t;
 }
 extern "C" {
-    pub fn lldiv(
-        _Numerator: ::std::os::raw::c_longlong,
-        _Denominator: ::std::os::raw::c_longlong,
-    ) -> lldiv_t;
+    pub fn lldiv(_Numerator: ::std::os::raw::c_longlong, _Denominator: ::std::os::raw::c_longlong) -> lldiv_t;
 }
 extern "C" {
-    pub fn _rotl(
-        _Value: ::std::os::raw::c_uint,
-        _Shift: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_uint;
+    pub fn _rotl(_Value: ::std::os::raw::c_uint, _Shift: ::std::os::raw::c_int) -> ::std::os::raw::c_uint;
 }
 extern "C" {
-    pub fn _lrotl(
-        _Value: ::std::os::raw::c_ulong,
-        _Shift: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_ulong;
+    pub fn _lrotl(_Value: ::std::os::raw::c_ulong, _Shift: ::std::os::raw::c_int) -> ::std::os::raw::c_ulong;
 }
 extern "C" {
-    pub fn _rotl64(
-        _Value: ::std::os::raw::c_ulonglong,
-        _Shift: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_ulonglong;
+    pub fn _rotl64(_Value: ::std::os::raw::c_ulonglong, _Shift: ::std::os::raw::c_int) -> ::std::os::raw::c_ulonglong;
 }
 extern "C" {
-    pub fn _rotr(
-        _Value: ::std::os::raw::c_uint,
-        _Shift: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_uint;
+    pub fn _rotr(_Value: ::std::os::raw::c_uint, _Shift: ::std::os::raw::c_int) -> ::std::os::raw::c_uint;
 }
 extern "C" {
-    pub fn _lrotr(
-        _Value: ::std::os::raw::c_ulong,
-        _Shift: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_ulong;
+    pub fn _lrotr(_Value: ::std::os::raw::c_ulong, _Shift: ::std::os::raw::c_int) -> ::std::os::raw::c_ulong;
 }
 extern "C" {
-    pub fn _rotr64(
-        _Value: ::std::os::raw::c_ulonglong,
-        _Shift: ::std::os::raw::c_int,
-    ) -> ::std::os::raw::c_ulonglong;
+    pub fn _rotr64(_Value: ::std::os::raw::c_ulonglong, _Shift: ::std::os::raw::c_int) -> ::std::os::raw::c_ulonglong;
 }
 extern "C" {
     pub fn srand(_Seed: ::std::os::raw::c_uint);
@@ -1159,12 +1028,7 @@ fn bindgen_test_layout__LDOUBLE() {
     assert_eq!(
         unsafe { &(*(::std::ptr::null::<_LDOUBLE>())).ld as *const _ as usize },
         0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_LDOUBLE),
-            "::",
-            stringify!(ld)
-        )
+        concat!("Offset of field: ", stringify!(_LDOUBLE), "::", stringify!(ld))
     );
 }
 #[repr(C)]
@@ -1187,12 +1051,7 @@ fn bindgen_test_layout__CRT_DOUBLE() {
     assert_eq!(
         unsafe { &(*(::std::ptr::null::<_CRT_DOUBLE>())).x as *const _ as usize },
         0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_CRT_DOUBLE),
-            "::",
-            stringify!(x)
-        )
+        concat!("Offset of field: ", stringify!(_CRT_DOUBLE), "::", stringify!(x))
     );
 }
 #[repr(C)]
@@ -1215,12 +1074,7 @@ fn bindgen_test_layout__CRT_FLOAT() {
     assert_eq!(
         unsafe { &(*(::std::ptr::null::<_CRT_FLOAT>())).f as *const _ as usize },
         0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_CRT_FLOAT),
-            "::",
-            stringify!(f)
-        )
+        concat!("Offset of field: ", stringify!(_CRT_FLOAT), "::", stringify!(f))
     );
 }
 #[repr(C)]
@@ -1243,12 +1097,7 @@ fn bindgen_test_layout__LONGDOUBLE() {
     assert_eq!(
         unsafe { &(*(::std::ptr::null::<_LONGDOUBLE>())).x as *const _ as usize },
         0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_LONGDOUBLE),
-            "::",
-            stringify!(x)
-        )
+        concat!("Offset of field: ", stringify!(_LONGDOUBLE), "::", stringify!(x))
     );
 }
 #[repr(C)]
@@ -1271,12 +1120,7 @@ fn bindgen_test_layout__LDBL12() {
     assert_eq!(
         unsafe { &(*(::std::ptr::null::<_LDBL12>())).ld12 as *const _ as usize },
         0usize,
-        concat!(
-            "Offset of field: ",
-            stringify!(_LDBL12),
-            "::",
-            stringify!(ld12)
-        )
+        concat!("Offset of field: ", stringify!(_LDBL12), "::", stringify!(ld12))
     );
 }
 extern "C" {
@@ -1298,46 +1142,25 @@ extern "C" {
     pub fn _atof_l(_String: *const ::std::os::raw::c_char, _Locale: _locale_t) -> f64;
 }
 extern "C" {
-    pub fn _atoi_l(
-        _String: *const ::std::os::raw::c_char,
-        _Locale: _locale_t,
-    ) -> ::std::os::raw::c_int;
+    pub fn _atoi_l(_String: *const ::std::os::raw::c_char, _Locale: _locale_t) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    pub fn _atol_l(
-        _String: *const ::std::os::raw::c_char,
-        _Locale: _locale_t,
-    ) -> ::std::os::raw::c_long;
+    pub fn _atol_l(_String: *const ::std::os::raw::c_char, _Locale: _locale_t) -> ::std::os::raw::c_long;
 }
 extern "C" {
-    pub fn _atoll_l(
-        _String: *const ::std::os::raw::c_char,
-        _Locale: _locale_t,
-    ) -> ::std::os::raw::c_longlong;
+    pub fn _atoll_l(_String: *const ::std::os::raw::c_char, _Locale: _locale_t) -> ::std::os::raw::c_longlong;
 }
 extern "C" {
-    pub fn _atoi64_l(
-        _String: *const ::std::os::raw::c_char,
-        _Locale: _locale_t,
-    ) -> ::std::os::raw::c_longlong;
+    pub fn _atoi64_l(_String: *const ::std::os::raw::c_char, _Locale: _locale_t) -> ::std::os::raw::c_longlong;
 }
 extern "C" {
-    pub fn _atoflt(
-        _Result: *mut _CRT_FLOAT,
-        _String: *const ::std::os::raw::c_char,
-    ) -> ::std::os::raw::c_int;
+    pub fn _atoflt(_Result: *mut _CRT_FLOAT, _String: *const ::std::os::raw::c_char) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    pub fn _atodbl(
-        _Result: *mut _CRT_DOUBLE,
-        _String: *mut ::std::os::raw::c_char,
-    ) -> ::std::os::raw::c_int;
+    pub fn _atodbl(_Result: *mut _CRT_DOUBLE, _String: *mut ::std::os::raw::c_char) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    pub fn _atoldbl(
-        _Result: *mut _LDOUBLE,
-        _String: *mut ::std::os::raw::c_char,
-    ) -> ::std::os::raw::c_int;
+    pub fn _atoldbl(_Result: *mut _LDOUBLE, _String: *mut ::std::os::raw::c_char) -> ::std::os::raw::c_int;
 }
 extern "C" {
     pub fn _atoflt_l(
@@ -1361,10 +1184,7 @@ extern "C" {
     ) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    pub fn strtof(
-        _String: *const ::std::os::raw::c_char,
-        _EndPtr: *mut *mut ::std::os::raw::c_char,
-    ) -> f32;
+    pub fn strtof(_String: *const ::std::os::raw::c_char, _EndPtr: *mut *mut ::std::os::raw::c_char) -> f32;
 }
 extern "C" {
     pub fn _strtof_l(
@@ -1374,10 +1194,7 @@ extern "C" {
     ) -> f32;
 }
 extern "C" {
-    pub fn strtod(
-        _String: *const ::std::os::raw::c_char,
-        _EndPtr: *mut *mut ::std::os::raw::c_char,
-    ) -> f64;
+    pub fn strtod(_String: *const ::std::os::raw::c_char, _EndPtr: *mut *mut ::std::os::raw::c_char) -> f64;
 }
 extern "C" {
     pub fn _strtod_l(
@@ -1387,10 +1204,7 @@ extern "C" {
     ) -> f64;
 }
 extern "C" {
-    pub fn strtold(
-        _String: *const ::std::os::raw::c_char,
-        _EndPtr: *mut *mut ::std::os::raw::c_char,
-    ) -> f64;
+    pub fn strtold(_String: *const ::std::os::raw::c_char, _EndPtr: *mut *mut ::std::os::raw::c_char) -> f64;
 }
 extern "C" {
     pub fn _strtold_l(
@@ -1625,11 +1439,7 @@ extern "C" {
     pub fn mblen(_Ch: *const ::std::os::raw::c_char, _MaxCount: usize) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    pub fn _mblen_l(
-        _Ch: *const ::std::os::raw::c_char,
-        _MaxCount: usize,
-        _Locale: _locale_t,
-    ) -> ::std::os::raw::c_int;
+    pub fn _mblen_l(_Ch: *const ::std::os::raw::c_char, _MaxCount: usize, _Locale: _locale_t) -> ::std::os::raw::c_int;
 }
 extern "C" {
     pub fn _mbstrlen(_String: *const ::std::os::raw::c_char) -> usize;
@@ -1641,11 +1451,7 @@ extern "C" {
     pub fn _mbstrnlen(_String: *const ::std::os::raw::c_char, _MaxCount: usize) -> usize;
 }
 extern "C" {
-    pub fn _mbstrnlen_l(
-        _String: *const ::std::os::raw::c_char,
-        _MaxCount: usize,
-        _Locale: _locale_t,
-    ) -> usize;
+    pub fn _mbstrnlen_l(_String: *const ::std::os::raw::c_char, _MaxCount: usize, _Locale: _locale_t) -> usize;
 }
 extern "C" {
     pub fn mbtowc(
@@ -1672,11 +1478,7 @@ extern "C" {
     ) -> errno_t;
 }
 extern "C" {
-    pub fn mbstowcs(
-        _Dest: *mut wchar_t,
-        _Source: *const ::std::os::raw::c_char,
-        _MaxCount: usize,
-    ) -> usize;
+    pub fn mbstowcs(_Dest: *mut wchar_t, _Source: *const ::std::os::raw::c_char, _MaxCount: usize) -> usize;
 }
 extern "C" {
     pub fn _mbstowcs_s_l(
@@ -1700,11 +1502,7 @@ extern "C" {
     pub fn wctomb(_MbCh: *mut ::std::os::raw::c_char, _WCh: wchar_t) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    pub fn _wctomb_l(
-        _MbCh: *mut ::std::os::raw::c_char,
-        _WCh: wchar_t,
-        _Locale: _locale_t,
-    ) -> ::std::os::raw::c_int;
+    pub fn _wctomb_l(_MbCh: *mut ::std::os::raw::c_char, _WCh: wchar_t, _Locale: _locale_t) -> ::std::os::raw::c_int;
 }
 extern "C" {
     pub fn wctomb_s(
@@ -1733,11 +1531,7 @@ extern "C" {
     ) -> errno_t;
 }
 extern "C" {
-    pub fn wcstombs(
-        _Dest: *mut ::std::os::raw::c_char,
-        _Source: *const wchar_t,
-        _MaxCount: usize,
-    ) -> usize;
+    pub fn wcstombs(_Dest: *mut ::std::os::raw::c_char, _Source: *const wchar_t, _MaxCount: usize) -> usize;
 }
 extern "C" {
     pub fn _wcstombs_s_l(
@@ -1845,10 +1639,7 @@ extern "C" {
     pub fn _putenv(_EnvString: *const ::std::os::raw::c_char) -> ::std::os::raw::c_int;
 }
 extern "C" {
-    pub fn _putenv_s(
-        _Name: *const ::std::os::raw::c_char,
-        _Value: *const ::std::os::raw::c_char,
-    ) -> errno_t;
+    pub fn _putenv_s(_Name: *const ::std::os::raw::c_char, _Value: *const ::std::os::raw::c_char) -> errno_t;
 }
 extern "C" {
     pub fn _searchenv_s(
@@ -1949,8 +1740,7 @@ pub type WrenReallocateFn = ::std::option::Option<
     ) -> *mut ::std::os::raw::c_void,
 >;
 pub type WrenForeignMethodFn = ::std::option::Option<unsafe extern "C" fn(vm: *mut WrenVM)>;
-pub type WrenFinalizerFn =
-    ::std::option::Option<unsafe extern "C" fn(data: *mut ::std::os::raw::c_void)>;
+pub type WrenFinalizerFn = ::std::option::Option<unsafe extern "C" fn(data: *mut ::std::os::raw::c_void)>;
 pub type WrenResolveModuleFn = ::std::option::Option<
     unsafe extern "C" fn(
         vm: *mut WrenVM,
@@ -1959,11 +1749,7 @@ pub type WrenResolveModuleFn = ::std::option::Option<
     ) -> *const ::std::os::raw::c_char,
 >;
 pub type WrenLoadModuleCompleteFn = ::std::option::Option<
-    unsafe extern "C" fn(
-        vm: *mut WrenVM,
-        name: *const ::std::os::raw::c_char,
-        result: WrenLoadModuleResult,
-    ),
+    unsafe extern "C" fn(vm: *mut WrenVM, name: *const ::std::os::raw::c_char, result: WrenLoadModuleResult),
 >;
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
@@ -2016,10 +1802,7 @@ fn bindgen_test_layout_WrenLoadModuleResult() {
     );
 }
 pub type WrenLoadModuleFn = ::std::option::Option<
-    unsafe extern "C" fn(
-        vm: *mut WrenVM,
-        name: *const ::std::os::raw::c_char,
-    ) -> WrenLoadModuleResult,
+    unsafe extern "C" fn(vm: *mut WrenVM, name: *const ::std::os::raw::c_char) -> WrenLoadModuleResult,
 >;
 pub type WrenBindForeignMethodFn = ::std::option::Option<
     unsafe extern "C" fn(
@@ -2030,9 +1813,8 @@ pub type WrenBindForeignMethodFn = ::std::option::Option<
         signature: *const ::std::os::raw::c_char,
     ) -> WrenForeignMethodFn,
 >;
-pub type WrenWriteFn = ::std::option::Option<
-    unsafe extern "C" fn(vm: *mut WrenVM, text: *const ::std::os::raw::c_char),
->;
+pub type WrenWriteFn =
+    ::std::option::Option<unsafe extern "C" fn(vm: *mut WrenVM, text: *const ::std::os::raw::c_char)>;
 pub const WrenErrorType_WREN_ERROR_COMPILE: WrenErrorType = 0;
 pub const WrenErrorType_WREN_ERROR_RUNTIME: WrenErrorType = 1;
 pub const WrenErrorType_WREN_ERROR_STACK_TRACE: WrenErrorType = 2;
@@ -2065,9 +1847,7 @@ fn bindgen_test_layout_WrenForeignClassMethods() {
         concat!("Alignment of ", stringify!(WrenForeignClassMethods))
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<WrenForeignClassMethods>())).allocate as *const _ as usize
-        },
+        unsafe { &(*(::std::ptr::null::<WrenForeignClassMethods>())).allocate as *const _ as usize },
         0usize,
         concat!(
             "Offset of field: ",
@@ -2077,9 +1857,7 @@ fn bindgen_test_layout_WrenForeignClassMethods() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<WrenForeignClassMethods>())).finalize as *const _ as usize
-        },
+        unsafe { &(*(::std::ptr::null::<WrenForeignClassMethods>())).finalize as *const _ as usize },
         8usize,
         concat!(
             "Offset of field: ",
@@ -2134,9 +1912,7 @@ fn bindgen_test_layout_WrenConfiguration() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<WrenConfiguration>())).resolveModuleFn as *const _ as usize
-        },
+        unsafe { &(*(::std::ptr::null::<WrenConfiguration>())).resolveModuleFn as *const _ as usize },
         8usize,
         concat!(
             "Offset of field: ",
@@ -2156,9 +1932,7 @@ fn bindgen_test_layout_WrenConfiguration() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<WrenConfiguration>())).bindForeignMethodFn as *const _ as usize
-        },
+        unsafe { &(*(::std::ptr::null::<WrenConfiguration>())).bindForeignMethodFn as *const _ as usize },
         24usize,
         concat!(
             "Offset of field: ",
@@ -2168,9 +1942,7 @@ fn bindgen_test_layout_WrenConfiguration() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<WrenConfiguration>())).bindForeignClassFn as *const _ as usize
-        },
+        unsafe { &(*(::std::ptr::null::<WrenConfiguration>())).bindForeignClassFn as *const _ as usize },
         32usize,
         concat!(
             "Offset of field: ",
@@ -2200,9 +1972,7 @@ fn bindgen_test_layout_WrenConfiguration() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<WrenConfiguration>())).initialHeapSize as *const _ as usize
-        },
+        unsafe { &(*(::std::ptr::null::<WrenConfiguration>())).initialHeapSize as *const _ as usize },
         56usize,
         concat!(
             "Offset of field: ",
@@ -2222,9 +1992,7 @@ fn bindgen_test_layout_WrenConfiguration() {
         )
     );
     assert_eq!(
-        unsafe {
-            &(*(::std::ptr::null::<WrenConfiguration>())).heapGrowthPercent as *const _ as usize
-        },
+        unsafe { &(*(::std::ptr::null::<WrenConfiguration>())).heapGrowthPercent as *const _ as usize },
         72usize,
         concat!(
             "Offset of field: ",
@@ -2277,10 +2045,7 @@ extern "C" {
     ) -> WrenInterpretResult;
 }
 extern "C" {
-    pub fn wrenMakeCallHandle(
-        vm: *mut WrenVM,
-        signature: *const ::std::os::raw::c_char,
-    ) -> *mut WrenHandle;
+    pub fn wrenMakeCallHandle(vm: *mut WrenVM, signature: *const ::std::os::raw::c_char) -> *mut WrenHandle;
 }
 extern "C" {
     pub fn wrenCall(vm: *mut WrenVM, method: *mut WrenHandle) -> WrenInterpretResult;
@@ -2311,16 +2076,10 @@ extern "C" {
     pub fn wrenGetSlotDouble(vm: *mut WrenVM, slot: ::std::os::raw::c_int) -> f64;
 }
 extern "C" {
-    pub fn wrenGetSlotForeign(
-        vm: *mut WrenVM,
-        slot: ::std::os::raw::c_int,
-    ) -> *mut ::std::os::raw::c_void;
+    pub fn wrenGetSlotForeign(vm: *mut WrenVM, slot: ::std::os::raw::c_int) -> *mut ::std::os::raw::c_void;
 }
 extern "C" {
-    pub fn wrenGetSlotString(
-        vm: *mut WrenVM,
-        slot: ::std::os::raw::c_int,
-    ) -> *const ::std::os::raw::c_char;
+    pub fn wrenGetSlotString(vm: *mut WrenVM, slot: ::std::os::raw::c_int) -> *const ::std::os::raw::c_char;
 }
 extern "C" {
     pub fn wrenGetSlotHandle(vm: *mut WrenVM, slot: ::std::os::raw::c_int) -> *mut WrenHandle;
@@ -2357,11 +2116,7 @@ extern "C" {
     pub fn wrenSetSlotNull(vm: *mut WrenVM, slot: ::std::os::raw::c_int);
 }
 extern "C" {
-    pub fn wrenSetSlotString(
-        vm: *mut WrenVM,
-        slot: ::std::os::raw::c_int,
-        text: *const ::std::os::raw::c_char,
-    );
+    pub fn wrenSetSlotString(vm: *mut WrenVM, slot: ::std::os::raw::c_int, text: *const ::std::os::raw::c_char);
 }
 extern "C" {
     pub fn wrenSetSlotHandle(vm: *mut WrenVM, slot: ::std::os::raw::c_int, handle: *mut WrenHandle);

@@ -1,6 +1,6 @@
 [package]
 name = "rust-wren"
-version = "0.7.0"
+version = "0.8.0"
 authors = ["Willem Victor <wimpievictor@gmail.com>"]
 edition = "2018"
 
@@ -9,9 +9,11 @@ edition = "2018"
 [dependencies]
 backtrace = "0.3.55"
 crossbeam = "0.8"
+lazy_static = "1.4"
 log = "0.4"
-rust_wren_derive = { version = "*", path = "rust-wren-derive"}
 inventory = "0.1"
+regex = "1.4"
+rust_wren_derive = { version = "*", path = "rust-wren-derive"}
 
 [build-dependencies]
 bindgen = "0.53.1"
