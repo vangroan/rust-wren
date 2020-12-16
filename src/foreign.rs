@@ -75,18 +75,8 @@ impl ForeignBindings {
     ) -> bindings::WrenForeignClassMethods {
         let userdata = unsafe { WrenVm::get_user_data(vm).expect("User data is null") };
 
-        let module = unsafe {
-            CStr::from_ptr(module)
-                .to_owned()
-                .to_string_lossy()
-                .to_string()
-        };
-        let class = unsafe {
-            CStr::from_ptr(class_name)
-                .to_owned()
-                .to_string_lossy()
-                .to_string()
-        };
+        let module = unsafe { CStr::from_ptr(module).to_owned().to_string_lossy().to_string() };
+        let class = unsafe { CStr::from_ptr(class_name).to_owned().to_string_lossy().to_string() };
         trace!("bind_foreign_class {} {}", module, class);
 
         let (allocate, finalize) = userdata
@@ -117,24 +107,9 @@ impl ForeignBindings {
     ) -> bindings::WrenForeignMethodFn {
         let userdata = unsafe { WrenVm::get_user_data(vm).expect("User data is null") };
 
-        let module = unsafe {
-            CStr::from_ptr(module)
-                .to_owned()
-                .to_string_lossy()
-                .to_string()
-        };
-        let class = unsafe {
-            CStr::from_ptr(class_name)
-                .to_owned()
-                .to_string_lossy()
-                .to_string()
-        };
-        let sig = unsafe {
-            CStr::from_ptr(signature)
-                .to_owned()
-                .to_string_lossy()
-                .to_string()
-        };
+        let module = unsafe { CStr::from_ptr(module).to_owned().to_string_lossy().to_string() };
+        let class = unsafe { CStr::from_ptr(class_name).to_owned().to_string_lossy().to_string() };
+        let sig = unsafe { CStr::from_ptr(signature).to_owned().to_string_lossy().to_string() };
 
         let key = ForeignMethodKey {
             module,
@@ -147,7 +122,10 @@ impl ForeignBindings {
         let method = userdata.foreign.methods.get(&key).map(|m| m.func);
 
         if method.is_none() {
-            warn!("Warning: Foreign method not found {:?}. Did you forget to register it with the builder?", key);
+            warn!(
+                "Warning: Foreign method not found {:?}. Did you forget to register it with the builder?",
+                key
+            );
         }
 
         method

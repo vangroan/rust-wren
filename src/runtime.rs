@@ -7,11 +7,7 @@ use std::{
     ptr,
 };
 
-pub extern "C" fn wren_reallocate(
-    memory: *mut c_void,
-    new_size: usize,
-    _userdata: *mut c_void,
-) -> *mut c_void {
+pub extern "C" fn wren_reallocate(memory: *mut c_void, new_size: usize, _userdata: *mut c_void) -> *mut c_void {
     unsafe {
         if memory.is_null() {
             // Allocate
@@ -63,13 +59,9 @@ pub extern "C" fn error_function(
             let c_message = unsafe { CStr::from_ptr(message) };
             eprintln!(
                 "[{} line {}] [Error] {}",
-                c_module
-                    .to_str()
-                    .expect("Failed to convert module name to UTF-8"),
+                c_module.to_str().expect("Failed to convert module name to UTF-8"),
                 line,
-                c_message
-                    .to_str()
-                    .expect("Failed to convert message to UTF-8")
+                c_message.to_str().expect("Failed to convert message to UTF-8")
             );
         }
         bindings::WrenErrorType_WREN_ERROR_STACK_TRACE => {
@@ -77,22 +69,16 @@ pub extern "C" fn error_function(
             let c_message = unsafe { CStr::from_ptr(message) };
             eprintln!(
                 "[{} line {}] [Error] in {}",
-                c_module
-                    .to_str()
-                    .expect("Failed to convert module name to UTF-8"),
+                c_module.to_str().expect("Failed to convert module name to UTF-8"),
                 line,
-                c_message
-                    .to_str()
-                    .expect("Failed to convert message to UTF-8")
+                c_message.to_str().expect("Failed to convert message to UTF-8")
             );
         }
         bindings::WrenErrorType_WREN_ERROR_RUNTIME => {
             let c_message = unsafe { CStr::from_ptr(message) };
             eprintln!(
                 "[Runtime Error] {}",
-                c_message
-                    .to_str()
-                    .expect("Failed to convert message to UTF-8")
+                c_message.to_str().expect("Failed to convert message to UTF-8")
             );
         }
         _ => {

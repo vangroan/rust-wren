@@ -3,11 +3,11 @@ use crate::{
     bindings,
     class::{WrenCell, WrenForeignClass},
     foreign::{ForeignBindings, ForeignClass, ForeignClassKey, ForeignMethod, ForeignMethodKey},
-    handle::WrenRef,
+    handle::{FnSymbolRef, WrenCallRef, WrenRef},
     runtime, types,
     value::FromWren,
 };
-use log::{trace, debug};
+use log::trace;
 use std::{
     any::TypeId,
     borrow::{Borrow, Cow},
@@ -41,8 +41,8 @@ impl WrenVm {
     }
 
     pub fn context<F>(&mut self, func: F)
-        where
-            F: FnOnce(&mut WrenContext),
+    where
+        F: FnOnce(&mut WrenContext),
     {
         let vm = unsafe { self.vm.as_mut().unwrap() };
         let _guard = ContextGuard { vm: self };
@@ -74,6 +74,8 @@ impl WrenVm {
 impl Drop for WrenVm {
     fn drop(&mut self) {
         if !self.vm.is_null() {
+            self.maintain();
+
             // Drop boxed user data
             unsafe {
                 let c_user_data = bindings::wrenGetUserData(self.vm);
@@ -120,9 +122,9 @@ impl WrenBuilder {
     }
 
     pub fn with_module<'a, S, F>(mut self, module: S, func: F) -> Self
-        where
-            S: Into<Cow<'a, str>>,
-            F: FnOnce(&mut ModuleBuilder),
+    where
+        S: Into<Cow<'a, str>>,
+        F: FnOnce(&mut ModuleBuilder),
     {
         let module_cow = module.into();
         let module_name = module_cow.borrow();
@@ -210,19 +212,18 @@ impl<'wren> WrenContext<'wren> {
 
     #[inline]
     pub fn get_slot<T>(&mut self, index: i32) -> Option<T::Output>
-        where
-            T: FromWren<'wren>,
+    where
+        T: FromWren<'wren>,
     {
         T::get_slot(self, index)
     }
 
     #[inline]
     pub fn get_foreign_cell<T>(&mut self, index: i32) -> Option<&'wren WrenCell<T>>
-        where
-            T: 'static + WrenForeignClass,
+    where
+        T: 'static + WrenForeignClass,
     {
-        let foreign_ptr: *mut WrenCell<T> =
-            unsafe { bindings::wrenGetSlotForeign(self.vm, index) as _ };
+        let foreign_ptr: *mut WrenCell<T> = unsafe { bindings::wrenGetSlotForeign(self.vm, index) as _ };
         let foreign_mut: &mut WrenCell<T> = unsafe { foreign_ptr.as_mut().unwrap() };
         Some(foreign_mut)
     }
@@ -269,8 +270,7 @@ impl<'wren> WrenContext<'wren> {
             return None;
         }
 
-        let var_exists =
-            unsafe { bindings::wrenHasVariable(self.vm, c_module.as_ptr(), c_name.as_ptr()) };
+        let var_exists = unsafe { bindings::wrenHasVariable(self.vm, c_module.as_ptr(), c_name.as_ptr()) };
         if !var_exists {
             return None;
         }
@@ -281,7 +281,7 @@ impl<'wren> WrenContext<'wren> {
         unsafe {
             bindings::wrenGetVariable(self.vm, c_module.as_ptr(), c_name.as_ptr(), 0);
         }
-        trace!("Variable retrieved {}.{}", module, name);
+        trace!("Retrieved variable {}.{} of type {:?}", module, name, self.slot_type(0));
 
         // If the module or variable don't exist, there's junk in the slot.
         self.get_slot::<WrenRef<'wren>>(0)
@@ -341,6 +341,18 @@ impl<'wren> WrenContext<'wren> {
         unsafe { bindings::wrenHasModule(self.vm, c_module.as_ptr()) }
     }
 
+    /// Looks up a class or object instance method and returns a call handle reference.
+    ///
+    /// # Errors
+    ///
+    /// Will return an error if the given variable doesn't exist, or the function signature has
+    /// an invalid format.
+    pub fn make_call_ref(&mut self, module: &str, variable: &str, func_sig: &str) -> Option<WrenCallRef<'wren>> {
+        let receiver = self.get_var(module, variable)?;
+        let func = FnSymbolRef::compile(self, func_sig)?;
+        Some(WrenCallRef::new(receiver, func))
+    }
+
     /// Retrieve the channel sender for Wren handles that need to be released.
     pub fn destructor_sender(&self) -> Sender<*mut bindings::WrenHandle> {
         self.handle_tx.clone()
@@ -370,8 +382,8 @@ pub struct ModuleBuilder<'a> {
 
 impl<'a> ModuleBuilder<'a> {
     pub fn register<T>(&mut self)
-        where
-            T: WrenForeignClass,
+    where
+        T: WrenForeignClass,
     {
         T::register(self);
     }
@@ -379,8 +391,8 @@ impl<'a> ModuleBuilder<'a> {
     /// Intended to be used by generated code.
     #[doc(hidden)]
     pub fn add_class_binding<S>(&mut self, class: S, binding: ForeignClass)
-        where
-            S: Into<Cow<'a, str>>,
+    where
+        S: Into<Cow<'a, str>>,
     {
         let key = ForeignClassKey {
             module: self.module.to_owned(),
@@ -392,8 +404,8 @@ impl<'a> ModuleBuilder<'a> {
     /// Intended to be used by generated code.
     #[doc(hidden)]
     pub fn add_reverse_class_lookup<T>(&mut self)
-        where
-            T: 'static + WrenForeignClass,
+    where
+        T: 'static + WrenForeignClass,
     {
         let key = ForeignClassKey {
             module: self.module.to_owned(),
@@ -405,8 +417,8 @@ impl<'a> ModuleBuilder<'a> {
     /// Intended to be used by generated code.
     #[doc(hidden)]
     pub fn add_method_binding<S>(&mut self, class: S, binding: ForeignMethod)
-        where
-            S: Into<Cow<'a, str>>,
+    where
+        S: Into<Cow<'a, str>>,
     {
         let key = ForeignMethodKey {
             module: self.module.to_owned(),
