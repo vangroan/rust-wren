@@ -95,6 +95,24 @@ pub fn wren_methods(_: TokenStream, item: TokenStream) -> TokenStream {
         .into()
 }
 
+/// Convenience macro for creating an error that has compile time line and module information.
+#[proc_macro]
+pub fn foreign_error(args: TokenStream) -> TokenStream {
+    let ast = parse_macro_input!(args as Expr);
+
+    let gen = quote! {
+        // Wren uses a signed int for its line numbers, so we're matching that to keep the stack frame consistent
+        // between foreign and non-foreign stack frames.
+        rust_wren::ForeignError::Annotated {
+            line: line!() as i32,
+            module: file!().to_owned().replace("\\", "/"),
+            inner: Box::new(#ast),
+        }
+    };
+
+    gen.into()
+}
+
 /// Generate an implementation for converting a tuple struct to Wren slots.
 #[proc_macro]
 pub fn generate_tuple_to_wren(args: TokenStream) -> TokenStream {
