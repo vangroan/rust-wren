@@ -49,11 +49,15 @@ fn test_write_fn() {
         })
         .build();
 
-    vm.interpret("test_context", r#"
+    vm.interpret(
+        "test_context",
+        r#"
     System.print("a")
     System.print("b")
     System.print("c")
-    "#).expect("Interpret failed");
+    "#,
+    )
+    .expect("Interpret failed");
 
     CALL_COUNT.with(|f| {
         // Wren prints a new line as a separate call, so number of calls are doubled.

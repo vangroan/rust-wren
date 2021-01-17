@@ -4,7 +4,10 @@ use crate::{
     vm::{WrenContext, WrenVm},
 };
 use smol_str::SmolStr;
-use std::{ffi::CString, fmt::{self, Display}};
+use std::{
+    ffi::CString,
+    fmt::{self, Display},
+};
 
 pub type WrenResult<T> = ::std::result::Result<T, WrenError>;
 
@@ -29,18 +32,21 @@ impl ::std::fmt::Display for WrenError {
                     writeln!(f, "[{} line {}] [Error] {}", err.module, err.line, err.message)?;
                 }
                 Ok(())
-            },
+            }
             WrenError::RuntimeError { message, stack, .. } => {
                 writeln!(f, "[Runtime Error] {}", message)?;
 
-
                 for frame in stack {
                     let is_foreign = if frame.is_foreign { "*" } else { "" };
-                    writeln!(f, "[{}{} line {}] [Error] in {}", is_foreign, frame.module, frame.line, frame.function)?;
+                    writeln!(
+                        f,
+                        "[{}{} line {}] [Error] in {}",
+                        is_foreign, frame.module, frame.line, frame.function
+                    )?;
                 }
 
                 Ok(())
-            },
+            }
         }
     }
 }
@@ -121,14 +127,14 @@ impl ForeignError {
     pub fn inner(&self) -> &(dyn ::std::error::Error + 'static) {
         match self {
             ForeignError::Simple(inner) => &**inner,
-            ForeignError::Annotated { inner, .. } =>  &**inner,
+            ForeignError::Annotated { inner, .. } => &**inner,
         }
     }
 
     pub fn take_inner(self) -> Box<dyn ::std::error::Error> {
         match self {
             ForeignError::Simple(inner) => inner,
-            ForeignError::Annotated { inner, .. } =>  inner,
+            ForeignError::Annotated { inner, .. } => inner,
         }
     }
 }
