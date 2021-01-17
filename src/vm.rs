@@ -62,8 +62,18 @@ impl WrenVm {
                 while let Ok(error) = self.error_rx.try_recv() {
                     match error {
                         WrenVmError::Runtime { msg } => message.push_str(msg.as_str()),
-                        WrenVmError::StackTrace { module, function, line, is_foreign } => {
-                            stack.push(WrenStackFrame { module, function, line, is_foreign });
+                        WrenVmError::StackTrace {
+                            module,
+                            function,
+                            line,
+                            is_foreign,
+                        } => {
+                            stack.push(WrenStackFrame {
+                                module,
+                                function,
+                                line,
+                                is_foreign,
+                            });
                         }
                         WrenVmError::Foreign(err) => foreign = Some(err.take_inner()),
                         err @ _ => unreachable!("Unexpected {:?}", err),

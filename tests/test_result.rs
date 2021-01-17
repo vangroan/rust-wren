@@ -76,7 +76,6 @@ fn test_compile_error() {
         eprintln!("{}", err);
     }
 
-
     match result {
         Err(WrenError::CompileError(errors)) => {
             for WrenCompileError { module, message, line } in errors {
@@ -100,7 +99,12 @@ fn test_compile_error() {
 
             let count = stack.len();
             for (idx, frame) in stack.into_iter().enumerate() {
-                let WrenStackFrame { module, line, function, is_foreign } = frame;
+                let WrenStackFrame {
+                    module,
+                    line,
+                    function,
+                    is_foreign,
+                } = frame;
 
                 if is_foreign {
                     msg.push_str(&format!("\t{}. *foreign {}:{}\n", count - idx, module, line,));

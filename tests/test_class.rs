@@ -30,6 +30,21 @@ impl Vector2 {
         Vector2::new(7.0, 11.0)
     }
 
+    #[method(name = fooBar)]
+    fn foo_bar() {
+        println!("foo_bar()");
+    }
+
+    #[method(name = fooBar)]
+    fn foo_bar_1(a: f64) {
+        println!("foo_bar_1({})", a);
+    }
+
+    #[method(name = fooBar)]
+    fn foo_bar_2(a: f64, b: f64) {
+        println!("foo_bar_2({}, {})", a, b);
+    }
+
     fn magnitude(&self) -> f64 {
         (self.x.powf(2.0) + self.y.powf(2.0)).sqrt()
     }
@@ -59,6 +74,9 @@ fn test_wren_class() {
                 foreign y()
                 foreign static zero()
                 foreign static test()
+                foreign static fooBar()
+                foreign static fooBar(a)
+                foreign static fooBar(a, b)
                 foreign magnitude()
                 foreign dot(rhs)
             }
@@ -84,6 +102,11 @@ fn test_wren_class() {
            Vector2.zero()
            Vector2.zero()
            Vector2.zero()
+
+           // Function with different names in Wren and Rust.
+           Vector2.fooBar()
+           Vector2.fooBar(1)
+           Vector2.fooBar(1, 2)
     "#,
     )
     .expect("Interpret error");
