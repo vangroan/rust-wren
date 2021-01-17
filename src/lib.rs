@@ -30,6 +30,7 @@ extern crate lazy_static;
 pub mod bindings;
 
 pub mod class;
+mod errors;
 pub mod foreign;
 pub mod handle;
 mod runtime;
@@ -37,6 +38,7 @@ mod types;
 pub mod value;
 mod vm;
 
+pub use errors::*;
 pub use vm::*;
 
 pub mod prelude {
@@ -44,7 +46,7 @@ pub mod prelude {
     pub use crate::handle::WrenRef;
     pub use crate::value::FromWren;
     pub use crate::vm::{WrenBuilder, WrenVm};
-    pub use rust_wren_derive::{wren_class, wren_methods};
+    pub use rust_wren_derive::{foreign_error, wren_class, wren_methods};
 }
 
 /// Modules that are needed by generated code, but not meant to be part

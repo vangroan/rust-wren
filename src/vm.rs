@@ -2,6 +2,7 @@
 use crate::{
     bindings,
     class::{WrenCell, WrenForeignClass},
+    errors::{WrenCompileError, WrenError, WrenResult, WrenStackFrame, WrenVmError},
     foreign::{ForeignBindings, ForeignClass, ForeignClassKey, ForeignMethod, ForeignMethodKey},
     handle::{FnSymbolRef, WrenCallRef, WrenRef},
     runtime, types,
@@ -14,29 +15,67 @@ use std::{
     ffi::CString,
     mem,
     os::raw::c_int,
+    ptr,
     sync::mpsc::{channel, Receiver, Sender},
-    {fmt, ptr},
 };
 
 pub struct WrenVm {
     vm: *mut bindings::WrenVM,
     handle_rx: Receiver<*mut bindings::WrenHandle>,
+    error_rx: Receiver<WrenVmError>,
 }
 
 impl WrenVm {
+    #[must_use = "possible VM errors are contained in the returned result"]
     pub fn interpret(&mut self, module: &str, source: &str) -> WrenResult<()> {
-        let vm = unsafe { self.vm.as_mut().unwrap() };
-        let _guard = ContextGuard { vm: self };
+        let result = {
+            let vm = unsafe { self.vm.as_mut().unwrap() };
+            let _guard = ContextGuard { vm: self };
 
-        // Wren copies these strings, so they are safe to free.
-        let c_module = CString::new(module).expect("Module name contains a null byte");
-        let c_source = CString::new(source).expect("Source contains a null byte");
-        let result = unsafe { bindings::wrenInterpret(vm, c_module.as_ptr(), c_source.as_ptr()) };
+            // Wren copies these strings, so they are safe to free.
+            let c_module = CString::new(module).expect("Module name contains a null byte");
+            let c_source = CString::new(source).expect("Source contains a null byte");
+            unsafe { bindings::wrenInterpret(vm, c_module.as_ptr(), c_source.as_ptr()) }
+        };
+
         match result {
             bindings::WrenInterpretResult_WREN_RESULT_SUCCESS => Ok(()),
-            bindings::WrenInterpretResult_WREN_RESULT_COMPILE_ERROR => Err(WrenError::CompileError),
-            bindings::WrenInterpretResult_WREN_RESULT_RUNTIME_ERROR => Err(WrenError::RuntimeError),
-            _ => panic!("Unknown Wren result type: {}", result),
+            bindings::WrenInterpretResult_WREN_RESULT_COMPILE_ERROR => {
+                let mut errors: Vec<WrenCompileError> = vec![];
+
+                while let Ok(error) = self.error_rx.try_recv() {
+                    match error {
+                        WrenVmError::Compile { module, message, line } => {
+                            errors.push(WrenCompileError { module, message, line })
+                        }
+                        err @ _ => unreachable!("Unexpected {:?}", err),
+                    }
+                }
+
+                Err(WrenError::CompileError(errors))
+            }
+            bindings::WrenInterpretResult_WREN_RESULT_RUNTIME_ERROR => {
+                let mut message = String::new();
+                let mut foreign: Option<Box<dyn ::std::error::Error>> = None;
+                let mut stack: Vec<WrenStackFrame> = vec![];
+
+                while let Ok(error) = self.error_rx.try_recv() {
+                    match error {
+                        WrenVmError::Runtime { msg } => message.push_str(msg.as_str()),
+                        WrenVmError::StackTrace { module, function, line, is_foreign } => {
+                            stack.push(WrenStackFrame { module, function, line, is_foreign });
+                        }
+                        WrenVmError::Foreign(err) => foreign = Some(err.take_inner()),
+                        err @ _ => unreachable!("Unexpected {:?}", err),
+                    }
+                }
+                Err(WrenError::RuntimeError {
+                    message,
+                    foreign,
+                    stack,
+                })
+            }
+            _ => unreachable!("Unknown Wren result type: {}", result),
         }
     }
 
@@ -108,9 +147,11 @@ impl<'wren> Drop for ContextGuard<'wren> {
 #[must_use = "Wren VM was not build. Call build() on the builder instance."]
 pub struct WrenBuilder {
     foreign: ForeignBindings,
+    write_fn: Option<Box<dyn Fn(&str)>>,
 }
 
 impl WrenBuilder {
+    #[must_use = "must call build on builder to create vm"]
     pub fn new() -> WrenBuilder {
         Default::default()
     }
@@ -136,9 +177,25 @@ impl WrenBuilder {
         self
     }
 
+    pub fn with_write_fn<F>(mut self, write_fn: F) -> Self
+    where
+        F: Fn(&str) + 'static,
+    {
+        self.write_fn = Some(Box::new(write_fn));
+        self
+    }
+
+    /// By default print to stdout.
+    fn default_write_fn() -> Box<dyn Fn(&str) + 'static> {
+        Box::new(|s| print!("{}", s))
+    }
+
     pub fn build(self) -> WrenVm {
         // Wren handle pointers that need to be released.
         let (handle_tx, handle_rx) = channel();
+
+        // Errors are piped through a channel to cross the boundary between an extern C callback and outer Rust code.
+        let (error_tx, error_rx) = channel();
 
         let mut config = unsafe {
             let mut uninit_config = mem::MaybeUninit::<bindings::WrenConfiguration>::zeroed();
@@ -150,8 +207,13 @@ impl WrenBuilder {
         config.writeFn = Some(runtime::write_function);
         config.errorFn = Some(runtime::error_function);
 
-        let WrenBuilder { foreign } = self;
-        let user_data = UserData { foreign, handle_tx };
+        let WrenBuilder { foreign, write_fn } = self;
+        let user_data = UserData {
+            foreign,
+            handle_tx,
+            error_tx,
+            write_fn: write_fn.unwrap_or_else(WrenBuilder::default_write_fn),
+        };
         config.userData = Box::into_raw(Box::new(user_data)) as _;
         config.bindForeignMethodFn = Some(ForeignBindings::bind_foreign_method);
         config.bindForeignClassFn = Some(ForeignBindings::bind_foreign_class);
@@ -163,27 +225,10 @@ impl WrenBuilder {
             panic!("Unexpected null result when creating WrenVM via C");
         }
 
-        WrenVm { vm, handle_rx }
-    }
-}
-
-pub type WrenResult<T> = Result<T, WrenError>;
-
-#[derive(Debug)]
-pub enum WrenError {
-    CompileError,
-    RuntimeError,
-}
-
-impl ::std::error::Error for WrenError {}
-
-impl ::std::fmt::Display for WrenError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        use WrenError::*;
-        // Useful error information is output by Wren using the `errorFn`.
-        match self {
-            CompileError => write!(f, "compile error"),
-            RuntimeError => write!(f, "runtime error"),
+        WrenVm {
+            vm,
+            handle_rx,
+            error_rx,
         }
     }
 }
@@ -373,6 +418,8 @@ impl<'wren> WrenContext<'wren> {
 pub struct UserData {
     pub foreign: ForeignBindings,
     pub handle_tx: Sender<*mut bindings::WrenHandle>,
+    pub error_tx: Sender<WrenVmError>,
+    pub write_fn: Box<dyn Fn(&str)>,
 }
 
 pub struct ModuleBuilder<'a> {
