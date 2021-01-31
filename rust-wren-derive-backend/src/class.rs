@@ -126,10 +126,7 @@ impl WrenClassArgs {
     fn add_expr(&mut self, expr: &Expr) -> syn::parse::Result<()> {
         match expr {
             Expr::Assign(assign) => self.add_assign(assign),
-            _ => Err(syn::parse::Error::new_spanned(
-                expr,
-                "Failed to parse arguments",
-            )),
+            _ => Err(syn::parse::Error::new_spanned(expr, "Failed to parse arguments")),
         }
     }
 

@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 use quote::quote;
 use rust_wren_derive_backend::{
-    build_wren_methods, gen_from_wren_impl, gen_to_wren_impl, WrenClassArgs,
+    build_wren_methods, gen_class_props, gen_from_wren_impl, gen_to_wren_impl, strip_prop_attrs, WrenClassArgs,
 };
 use syn::{
     self,
@@ -41,7 +41,7 @@ pub fn wren_class(attr: TokenStream, item: TokenStream) -> TokenStream {
     impl_wren_class(attr, item)
 }
 
-fn impl_wren_class(attr: WrenClassArgs, item: ItemStruct) -> TokenStream {
+fn impl_wren_class(attr: WrenClassArgs, mut item: ItemStruct) -> TokenStream {
     let struct_ident = item.ident.clone();
     let class_name = if let Some(name) = attr.name {
         // Use explicitly given name in attribute.
@@ -52,12 +52,15 @@ fn impl_wren_class(attr: WrenClassArgs, item: ItemStruct) -> TokenStream {
             _ => panic!("Wren class attr unexpected name expression type"),
         }
     } else {
-        // Use struc tname from Rust.
+        // Use struct name from Rust.
         struct_ident.to_string()
     };
 
     let from_wren_impl = gen_from_wren_impl(struct_ident.clone());
     let to_wren_impl = gen_to_wren_impl(struct_ident.clone());
+    let props_impl = gen_class_props(&item).expect("Failed to generate property accessors");
+
+    strip_prop_attrs(&mut item.fields);
 
     let gen = quote! {
         #item
@@ -75,12 +78,15 @@ fn impl_wren_class(attr: WrenClassArgs, item: ItemStruct) -> TokenStream {
                 bindings.add_class_binding(class_name, foreign_class);
                 bindings.add_reverse_class_lookup::<Self>();
                 Self::__wren_register_methods(bindings);
+                Self::__wren_register_properties(bindings);
             }
         }
 
         #from_wren_impl
 
         #to_wren_impl
+
+        #props_impl
     };
 
     gen.into()
@@ -187,10 +193,7 @@ impl Parse for ToWrenSpec {
                     }
                 }
                 _ => {
-                    return Err(syn::Error::new_spanned(
-                        expr,
-                        "Generate arguments must be identifiers.",
-                    ));
+                    return Err(syn::Error::new_spanned(expr, "Generate arguments must be identifiers."));
                 }
             }
         }

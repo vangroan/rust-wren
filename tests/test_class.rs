@@ -3,7 +3,9 @@ use rust_wren::prelude::*;
 #[wren_class]
 #[derive(Debug, Clone, Copy)]
 struct Vector2 {
+    #[getset]
     x: f64,
+    #[getset]
     y: f64,
 }
 
@@ -55,6 +57,25 @@ impl Vector2 {
     }
 }
 
+const VECTOR: &str = r#"
+foreign class Vector2 {
+    construct new(x, y) {}
+    foreign x
+    foreign x=(value)
+    foreign y
+    foreign y=(value)
+    foreign x()
+    foreign y()
+    foreign static zero()
+    foreign static test()
+    foreign static fooBar()
+    foreign static fooBar(a)
+    foreign static fooBar(a, b)
+    foreign magnitude()
+    foreign dot(rhs)
+}
+"#;
+
 #[test]
 fn test_wren_class() {
     let mut vm = WrenBuilder::new()
@@ -62,25 +83,13 @@ fn test_wren_class() {
             m.register::<Vector2>();
         })
         .build();
+    vm.interpret("test", VECTOR).expect("Interpret error");
 
     println!("Rust: {}", Vector2::new(7.0, 11.0).magnitude());
 
     vm.interpret(
         "test",
         r#"
-            foreign class Vector2 {
-                construct new(x, y) {}
-                foreign x()
-                foreign y()
-                foreign static zero()
-                foreign static test()
-                foreign static fooBar()
-                foreign static fooBar(a)
-                foreign static fooBar(a, b)
-                foreign magnitude()
-                foreign dot(rhs)
-            }
-
             var a = Vector2.new(7.0, 11.0)
             System.print("Wren: %(a.magnitude())")
 
@@ -113,4 +122,35 @@ fn test_wren_class() {
 
     drop(vm);
     println!("After vm drop");
+}
+
+#[test]
+fn test_property() {
+    let mut vm = WrenBuilder::new()
+        .with_module("test", |m| {
+            m.register::<Vector2>();
+        })
+        .build();
+
+    vm.interpret("test", VECTOR).expect("Interpret error");
+    vm.interpret("test", include_str!("test.wren"))
+        .expect("Load test utils failed");
+
+    vm.interpret(
+        "test",
+        r#"
+    var a = Vector2.new(3, 9)
+
+    Test.assertEq(a.x, 3, "Vector2.x")
+    Test.assertEq(a.y, 9, "Vector2.y")
+
+    // Property assignment return must be the assigned value, by convention.
+    Test.assertEq(a.x = 7, 7, "Vector2.x")
+    Test.assertEq(a.y = 11, 11, "Vector2.y")
+    Test.assertEq(a.x, 7, "Vector2.x")
+    Test.assertEq(a.y, 11, "Vector2.y")
+    System.print("Vector2(%(a.x), %(a.y))")
+    "#,
+    )
+    .expect("Interpret error");
 }

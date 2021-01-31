@@ -1,7 +1,11 @@
 use proc_macro2::{Literal, Span, TokenStream};
 use quote::{format_ident, quote};
-use syn::{Attribute, parenthesized, FnArg, Ident, ImplItem, ImplItemMethod, ItemImpl, Lit, Signature, Type,
-          parse::{Parse, ParseStream}, punctuated::Punctuated, Expr, Token, ExprAssign};
+use syn::{
+    parenthesized,
+    parse::{Parse, ParseStream},
+    punctuated::Punctuated,
+    Attribute, Expr, ExprAssign, FnArg, Ident, ImplItem, ImplItemMethod, ItemImpl, Lit, Signature, Token, Type,
+};
 
 pub fn build_wren_methods(mut ast: ItemImpl) -> syn::Result<TokenStream> {
     if let Some((_, path, _)) = ast.trait_ {
@@ -61,10 +65,7 @@ fn impl_methods(cls: &Type, impls: &mut Vec<ImplItem>) -> syn::Result<TokenStrea
     Ok(tokens)
 }
 
-fn handle_method(
-    cls: &Type,
-    method: &mut ImplItemMethod,
-) -> syn::Result<(TokenStream, WrenFnSpec)> {
+fn handle_method(cls: &Type, method: &mut ImplItemMethod) -> syn::Result<(TokenStream, WrenFnSpec)> {
     let spec = WrenFnSpec::build(&method.sig, &mut method.attrs)?;
 
     // Strip attributes so we can compile.
@@ -88,10 +89,7 @@ fn gen_wren_construct(_cls: &Type, method: &ImplItemMethod) -> syn::Result<Token
         let idx_lit = Lit::new(Literal::i32_unsuffixed(idx as i32 + 1));
         match arg {
             FnArg::Receiver(_) => {
-                return Err(syn::Error::new_spanned(
-                    arg,
-                    "Construct method cannot receive self",
-                ));
+                return Err(syn::Error::new_spanned(arg, "Construct method cannot receive self"));
             }
             FnArg::Typed(arg_ty) => {
                 let arg_type = arg_ty.ty.clone();
@@ -197,11 +195,7 @@ fn gen_wren_finalize() -> syn::Result<TokenStream> {
 }
 
 /// Generate a method AST.
-fn gen_wren_method(
-    _cls: &Type,
-    method: &mut ImplItemMethod,
-    is_static: bool,
-) -> syn::Result<TokenStream> {
+fn gen_wren_method(_cls: &Type, method: &mut ImplItemMethod, is_static: bool) -> syn::Result<TokenStream> {
     let method_ident = method.sig.ident.clone();
 
     let ctx = format_ident!("ctx");
@@ -352,11 +346,7 @@ impl WrenFnSpec {
 
         // Note that self receivers with a specified type, such as self: Box<Self>, are parsed as a FnArg::Typed.
         // https://docs.rs/syn/1.0.48/syn/enum.FnArg.html
-        let is_static = sig
-            .inputs
-            .iter()
-            .all(|arg| !matches!(arg, FnArg::Receiver(_)))
-            || sig.inputs.is_empty();
+        let is_static = sig.inputs.iter().all(|arg| !matches!(arg, FnArg::Receiver(_))) || sig.inputs.is_empty();
 
         // Wren does not include the receiver in the function signature, but Rust does.
         let arity = if !sig.inputs.is_empty() {
@@ -462,7 +452,8 @@ impl WrenMethodArgs {
 
         // Find pertinent attribute.
         let attr_ident = format_ident!("method");
-        let maybe_attr_pos = attrs.iter()
+        let maybe_attr_pos = attrs
+            .iter()
             .filter(|attr| attr.path.get_ident().is_some())
             .position(|attr| attr.path.get_ident() == Some(&attr_ident));
 
@@ -481,10 +472,7 @@ impl WrenMethodArgs {
     fn add_expr(&mut self, expr: &Expr) -> syn::parse::Result<()> {
         match expr {
             Expr::Assign(assign) => self.add_assign(assign),
-            _ => Err(syn::parse::Error::new_spanned(
-                expr,
-                "Failed to parse arguments",
-            )),
+            _ => Err(syn::parse::Error::new_spanned(expr, "Failed to parse arguments")),
         }
     }
 
