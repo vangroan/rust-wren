@@ -44,7 +44,7 @@ pub use vm::*;
 pub mod prelude {
     pub use crate::class::{WrenCell, WrenForeignClass};
     pub use crate::handle::WrenRef;
-    pub use crate::value::FromWren;
+    pub use crate::value::{FromWren, ToWren};
     pub use crate::vm::{WrenBuilder, WrenVm};
     pub use rust_wren_derive::{foreign_error, wren_class, wren_methods};
 }

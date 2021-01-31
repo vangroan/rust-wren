@@ -4,6 +4,8 @@
 //! any public functions or structs to live in a seperate crate.
 mod class;
 mod method;
+mod prop;
 
 pub use class::{gen_from_wren_impl, gen_to_wren_impl, WrenClassArgs};
 pub use method::build_wren_methods;
+pub use prop::{gen_class_props, strip_prop_attrs};
