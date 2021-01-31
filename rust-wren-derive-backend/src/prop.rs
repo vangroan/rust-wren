@@ -135,7 +135,6 @@ fn gen_set(field_ident: &Ident, field_ty: &Type) -> (TokenStream, TokenStream) {
     };
 
     let register = quote! {
-        println!("Register property setter {}", #sig);
         builder.add_method_binding(
             <Self as rust_wren::class::WrenForeignClass>::NAME,
             rust_wren::foreign::ForeignMethod {
