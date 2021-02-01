@@ -2,7 +2,7 @@ use rust_wren::{
     handle::{FnSymbolRef, WrenCallHandle, WrenCallRef, WrenHandle},
     prelude::*,
 };
-use std::rc::Rc;
+use std::{rc::Rc, thread};
 
 const CLASS: &str = r#"
 class TestHandle {
@@ -289,5 +289,27 @@ fn test_wren_call_ref_leak() {
     vm.context(|ctx| {
         let result = handle.unwrap().call::<_, f64>(ctx, 4.0).unwrap();
         assert_eq!(result, 16.0);
+    });
+}
+
+// Handle can be sent to another thread. Required if we are to process fibers in a thread pool.
+#[test]
+fn test_handle_thread_send() {
+    let mut vm = WrenBuilder::new().build();
+    vm.interpret(
+        "test_handle",
+        r#"
+    var a = 42
+    "#,
+    ).expect("Interpret failed");
+
+    vm.context(|ctx| {
+        let a = ctx.get_var("test_handle", "a").map(|r| r.leak());
+
+        let join = thread::spawn(move || {
+            assert!(a.is_some());
+        });
+
+        join.join().unwrap();
     });
 }
