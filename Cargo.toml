@@ -1,6 +1,6 @@
 [package]
 name = "rust-wren"
-version = "0.10.0"
+version = "0.10.1"
 authors = ["Willem Victor <wimpievictor@gmail.com>"]
 edition = "2018"
 
