@@ -50,9 +50,12 @@ fn test_properties() {
         .build();
 
     vm.interpret("test_properties", FOO).expect("Interpret failed");
-    vm.interpret("test", include_str!("test.wren")).expect("Interpret failed");
+    vm.interpret("test", include_str!("test.wren"))
+        .expect("Interpret failed");
 
-    vm.interpret("test_properties", r#"
+    vm.interpret(
+        "test_properties",
+        r#"
     import "test" for Test
 
     var a = Foo.new("BAR")
@@ -76,6 +79,7 @@ fn test_properties() {
     // Ensure we haven't mutated the others fields.
     Test.assertEq(a.bar, "BAR", "Foo.bar")
     Test.assertEq(a.getBaz(), "BAZ", "Foo.getBaz()")
-    "#).expect("Interpret failed");
+    "#,
+    )
+    .expect("Interpret failed");
 }
-

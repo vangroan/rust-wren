@@ -12,10 +12,12 @@ use log::trace;
 use std::{
     any::TypeId,
     borrow::{Borrow, Cow},
+    cell::Cell,
     ffi::CString,
+    marker::PhantomData,
     mem,
     os::raw::c_int,
-    ptr,
+    ptr::{self, NonNull},
     sync::mpsc::{channel, Receiver, Sender},
 };
 
@@ -48,7 +50,7 @@ impl WrenVm {
                         WrenVmError::Compile { module, message, line } => {
                             errors.push(WrenCompileError { module, message, line })
                         }
-                        err @ _ => unreachable!("Unexpected {:?}", err),
+                        err => unreachable!("Unexpected {:?}", err),
                     }
                 }
 
@@ -76,7 +78,7 @@ impl WrenVm {
                             });
                         }
                         WrenVmError::Foreign(err) => foreign = Some(err.take_inner()),
-                        err @ _ => unreachable!("Unexpected {:?}", err),
+                        err => unreachable!("Unexpected {:?}", err),
                     }
                 }
                 Err(WrenError::RuntimeError {
@@ -107,6 +109,12 @@ impl WrenVm {
 
     /// Utility function for extracting the concrete [`UserData`] instance from
     /// the given [`WrenVM`].
+    ///
+    /// Returns `None` if the user data within the VM is null.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the given VM pointer is valid and not null.
     pub unsafe fn get_user_data<'a>(vm: *mut bindings::WrenVM) -> Option<&'a mut UserData> {
         (bindings::wrenGetUserData(vm) as *mut UserData).as_mut()
     }
@@ -244,9 +252,10 @@ impl WrenBuilder {
 }
 
 pub struct WrenContext<'wren> {
-    pub(crate) vm: &'wren mut bindings::WrenVM,
+    pub(crate) vm: Cell<NonNull<bindings::WrenVM>>,
     /// Channel of Wren handles that need to be released in the VM.
     handle_tx: Sender<*mut bindings::WrenHandle>,
+    _marker: PhantomData<&'wren bindings::WrenVM>,
 }
 
 impl<'wren> WrenContext<'wren> {
@@ -254,19 +263,24 @@ impl<'wren> WrenContext<'wren> {
         let userdata = unsafe { WrenVm::get_user_data(vm).unwrap() };
         let handle_tx = userdata.handle_tx.clone();
 
-        WrenContext { vm, handle_tx }
+        WrenContext {
+            vm: unsafe { Cell::new(NonNull::new_unchecked(vm)) },
+            handle_tx,
+            _marker: PhantomData,
+        }
     }
 
     /// Retrieve a raw pointer to the inner VM.
     ///
     /// Intended to be used by generated code.
     #[doc(hidden)]
-    pub fn vm_ptr(&mut self) -> *mut bindings::WrenVM {
-        self.vm as *mut _
+    #[inline(always)]
+    pub fn vm_ptr(&self) -> *mut bindings::WrenVM {
+        self.vm.get().as_ptr()
     }
 
     #[inline]
-    pub fn get_slot<T>(&mut self, index: i32) -> Option<T::Output>
+    pub fn get_slot<T>(&self, index: i32) -> Option<T::Output>
     where
         T: FromWren<'wren>,
     {
@@ -274,37 +288,40 @@ impl<'wren> WrenContext<'wren> {
     }
 
     #[inline]
-    pub fn get_foreign_cell<T>(&mut self, index: i32) -> Option<&'wren WrenCell<T>>
+    pub fn get_foreign_cell<T>(&self, index: i32) -> Option<&'wren WrenCell<T>>
     where
         T: 'static + WrenForeignClass,
     {
-        let foreign_ptr: *mut WrenCell<T> = unsafe { bindings::wrenGetSlotForeign(self.vm, index) as _ };
+        let foreign_ptr: *mut WrenCell<T> = unsafe { bindings::wrenGetSlotForeign(self.vm_ptr(), index) as _ };
         let foreign_mut: &mut WrenCell<T> = unsafe { foreign_ptr.as_mut().unwrap() };
         Some(foreign_mut)
     }
 
-    /// TODO: Change &mut self to &self
+    /// Retrieve the current number of slots.
     #[inline]
-    pub fn slot_count(&mut self) -> usize {
-        let count: c_int = unsafe { bindings::wrenGetSlotCount(self.vm) };
+    pub fn slot_count(&self) -> usize {
+        let count: c_int = unsafe { bindings::wrenGetSlotCount(self.vm_ptr()) };
         count as usize
     }
 
-    /// TODO: Change &mut self to &self
+    /// Retrieve the type of the value stored in the given slot.
+    ///
+    /// Returns `None` if the slot index is out of bounds.
     #[inline]
-    pub fn slot_type(&mut self, slot_num: usize) -> Option<types::WrenType> {
+    pub fn slot_type(&self, slot_num: usize) -> Option<types::WrenType> {
         if slot_num >= self.slot_count() {
             None
         } else {
-            let ty = unsafe { bindings::wrenGetSlotType(self.vm, slot_num as c_int) };
+            let ty = unsafe { bindings::wrenGetSlotType(self.vm_ptr(), slot_num as c_int) };
             Some(ty.into())
         }
     }
 
+    /// Grow the slots array to match the given size.
     #[inline]
-    pub fn ensure_slots(&mut self, slot_size: usize) {
+    pub fn ensure_slots(&self, slot_size: usize) {
         unsafe {
-            bindings::wrenEnsureSlots(self.vm, slot_size as c_int);
+            bindings::wrenEnsureSlots(self.vm_ptr(), slot_size as c_int);
         }
     }
 
@@ -315,17 +332,17 @@ impl<'wren> WrenContext<'wren> {
     /// See:
     /// - [#717 When using wrenGetVariable, it now returns an int to inform you of failure](https://github.com/wren-lang/wren/pull/717)
     /// - [#601 wrenGetVariable does not seem to return a sane value](https://github.com/wren-lang/wren/issues/601)
-    pub fn get_var(&mut self, module: &str, name: &str) -> Option<WrenRef<'wren>> {
+    pub fn get_var(&self, module: &str, name: &str) -> Option<WrenRef<'wren>> {
         trace!("get_var({}, {})", module, name);
         let c_module = CString::new(module).expect("Module name contains a null byte");
         let c_name = CString::new(name).expect("Name name contains a null byte");
 
-        let module_exists = unsafe { bindings::wrenHasModule(self.vm, c_module.as_ptr()) };
+        let module_exists = unsafe { bindings::wrenHasModule(self.vm_ptr(), c_module.as_ptr()) };
         if !module_exists {
             return None;
         }
 
-        let var_exists = unsafe { bindings::wrenHasVariable(self.vm, c_module.as_ptr(), c_name.as_ptr()) };
+        let var_exists = unsafe { bindings::wrenHasVariable(self.vm_ptr(), c_module.as_ptr(), c_name.as_ptr()) };
         if !var_exists {
             return None;
         }
@@ -334,7 +351,7 @@ impl<'wren> WrenContext<'wren> {
         self.ensure_slots(1);
 
         unsafe {
-            bindings::wrenGetVariable(self.vm, c_module.as_ptr(), c_name.as_ptr(), 0);
+            bindings::wrenGetVariable(self.vm_ptr(), c_module.as_ptr(), c_name.as_ptr(), 0);
         }
         trace!("Retrieved variable {}.{} of type {:?}", module, name, self.slot_type(0));
 
@@ -359,16 +376,16 @@ impl<'wren> WrenContext<'wren> {
     ///     assert!(!ctx.has_var("example", "doesNotExist"));
     /// });
     /// ```
-    pub fn has_var(&mut self, module: &str, name: &str) -> bool {
+    pub fn has_var(&self, module: &str, name: &str) -> bool {
         trace!("has_var({}, {})", module, name);
         let c_module = CString::new(module).expect("Module name contains a null byte");
         let c_name = CString::new(name).expect("Name name contains a null byte");
 
-        let module_exists = unsafe { bindings::wrenHasModule(self.vm, c_module.as_ptr()) };
+        let module_exists = unsafe { bindings::wrenHasModule(self.vm_ptr(), c_module.as_ptr()) };
         if !module_exists {
             false
         } else {
-            unsafe { bindings::wrenHasVariable(self.vm, c_module.as_ptr(), c_name.as_ptr()) }
+            unsafe { bindings::wrenHasVariable(self.vm_ptr(), c_module.as_ptr(), c_name.as_ptr()) }
         }
     }
 
@@ -389,11 +406,11 @@ impl<'wren> WrenContext<'wren> {
     ///     assert!(!ctx.has_module("does_not_exist"));
     /// });
     /// ```
-    pub fn has_module(&mut self, module: &str) -> bool {
+    pub fn has_module(&self, module: &str) -> bool {
         trace!("has_module({})", module);
         let c_module = CString::new(module).expect("Module name contains a null byte");
 
-        unsafe { bindings::wrenHasModule(self.vm, c_module.as_ptr()) }
+        unsafe { bindings::wrenHasModule(self.vm_ptr(), c_module.as_ptr()) }
     }
 
     /// Looks up a class or object instance method and returns a call handle reference.
@@ -402,7 +419,7 @@ impl<'wren> WrenContext<'wren> {
     ///
     /// Will return an error if the given variable doesn't exist, or the function signature has
     /// an invalid format.
-    pub fn make_call_ref(&mut self, module: &str, variable: &str, func_sig: &str) -> Option<WrenCallRef<'wren>> {
+    pub fn make_call_ref(&self, module: &str, variable: &str, func_sig: &str) -> Option<WrenCallRef<'wren>> {
         let receiver = self.get_var(module, variable)?;
         let func = FnSymbolRef::compile(self, func_sig)?;
         Some(WrenCallRef::new(receiver, func))
@@ -416,12 +433,12 @@ impl<'wren> WrenContext<'wren> {
     /// Trigger the VM garbage collector.
     pub fn collect_garbage(&mut self) {
         unsafe {
-            bindings::wrenCollectGarbage(self.vm);
+            bindings::wrenCollectGarbage(self.vm_ptr());
         }
     }
 
-    pub fn user_data(&mut self) -> Option<&UserData> {
-        unsafe { WrenVm::get_user_data(self.vm).map(|u| &*u) }
+    pub fn user_data(&self) -> Option<&UserData> {
+        unsafe { WrenVm::get_user_data(self.vm_ptr()).map(|u| &*u) }
     }
 }
 

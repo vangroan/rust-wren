@@ -22,15 +22,15 @@ macro_rules! verify_slot {
 pub trait FromWren<'wren> {
     type Output: Sized;
 
-    fn get_slot(ctx: &mut WrenContext, slot_num: i32) -> Option<Self::Output>;
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output>;
 }
 
 impl<'wren> FromWren<'wren> for bool {
     type Output = Self;
 
-    fn get_slot(ctx: &mut WrenContext, slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
         verify_slot!(ctx, slot_num, WrenType::Bool);
-        Some(unsafe { bindings::wrenGetSlotBool(ctx.vm, slot_num) })
+        Some(unsafe { bindings::wrenGetSlotBool(ctx.vm_ptr(), slot_num) })
     }
 }
 
@@ -40,9 +40,9 @@ macro_rules! impl_from_wren_num {
             type Output = Self;
 
             #[inline]
-            fn get_slot(ctx: &mut WrenContext, slot_num: i32) -> Option<Self::Output> {
+            fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
                 verify_slot!(ctx, slot_num, WrenType::Number);
-                Some(unsafe { bindings::wrenGetSlotDouble(ctx.vm, slot_num) } as Self)
+                Some(unsafe { bindings::wrenGetSlotDouble(ctx.vm_ptr(), slot_num) } as Self)
             }
         }
     };
@@ -62,7 +62,7 @@ impl_from_wren_num!(f64);
 impl<'wren> FromWren<'wren> for String {
     type Output = Self;
 
-    fn get_slot(ctx: &mut WrenContext, slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
         <&str as FromWren>::get_slot(ctx, slot_num).map(|s| s.to_owned())
     }
 }
@@ -71,10 +71,10 @@ impl<'wren> FromWren<'wren> for String {
 impl<'wren> FromWren<'wren> for &'wren str {
     type Output = Self;
 
-    fn get_slot(ctx: &mut WrenContext, slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
         verify_slot!(ctx, slot_num, WrenType::String);
         let c_str = unsafe {
-            let char_ptr = bindings::wrenGetSlotString(ctx.vm, slot_num);
+            let char_ptr = bindings::wrenGetSlotString(ctx.vm_ptr(), slot_num);
             if char_ptr.is_null() {
                 return None;
             }
@@ -97,7 +97,7 @@ impl<'wren> FromWren<'wren> for () {
     type Output = Self;
 
     #[inline]
-    fn get_slot(_ctx: &mut WrenContext, _slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(_ctx: &WrenContext, _slot_num: i32) -> Option<Self::Output> {
         Some(())
     }
 }
@@ -113,7 +113,7 @@ where
     type Output = Option<T::Output>;
 
     #[inline]
-    fn get_slot(ctx: &mut WrenContext, slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
         // FIXME: We're validating slots twice in the case where it's not null.
         if slot_num < 0 {
             return None;
@@ -137,9 +137,9 @@ where
     type Output = &'wren WrenCell<T>;
 
     #[inline]
-    fn get_slot(ctx: &mut WrenContext, slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
         verify_slot!(ctx, slot_num, WrenType::Foreign);
-        let void_ptr: *const c_void = unsafe { bindings::wrenGetSlotForeign(ctx.vm, slot_num) as _ };
+        let void_ptr: *const c_void = unsafe { bindings::wrenGetSlotForeign(ctx.vm_ptr(), slot_num) as _ };
         unsafe { WrenCell::<T>::from_ptr(void_ptr) }
     }
 }
@@ -153,7 +153,7 @@ where
     type Output = &'wren WrenCell<T>;
 
     #[inline]
-    fn get_slot(ctx: &mut WrenContext, slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
         WrenCell::<T>::get_slot(ctx, slot_num)
     }
 }
@@ -167,9 +167,9 @@ where
     type Output = &'wren mut WrenCell<T>;
 
     #[inline]
-    fn get_slot(ctx: &mut WrenContext, slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
         verify_slot!(ctx, slot_num, WrenType::Foreign);
-        let void_ptr: *mut c_void = unsafe { bindings::wrenGetSlotForeign(ctx.vm, slot_num) as _ };
+        let void_ptr: *mut c_void = unsafe { bindings::wrenGetSlotForeign(ctx.vm_ptr(), slot_num) as _ };
         unsafe { WrenCell::<T>::from_ptr_mut(void_ptr) }
     }
 }
@@ -186,7 +186,7 @@ pub trait ToWren {
 
 impl ToWren for bool {
     fn put(self, ctx: &mut WrenContext, slot: i32) {
-        unsafe { bindings::wrenSetSlotBool(ctx.vm, slot, self) }
+        unsafe { bindings::wrenSetSlotBool(ctx.vm_ptr(), slot, self) }
     }
 }
 
@@ -195,7 +195,7 @@ macro_rules! impl_to_wren_num {
         impl ToWren for $t {
             #[inline]
             fn put(self, ctx: &mut WrenContext, slot: i32) {
-                unsafe { bindings::wrenSetSlotDouble(ctx.vm, slot, self as f64) }
+                unsafe { bindings::wrenSetSlotDouble(ctx.vm_ptr(), slot, self as f64) }
             }
         }
     };
@@ -216,7 +216,7 @@ impl ToWren for String {
     fn put(self, ctx: &mut WrenContext, slot: i32) {
         // Wren copies the contents of the given string.
         let c_string = CString::new(self).expect("String contains a null byte");
-        unsafe { bindings::wrenSetSlotString(ctx.vm, slot, c_string.as_ptr()) }
+        unsafe { bindings::wrenSetSlotString(ctx.vm_ptr(), slot, c_string.as_ptr()) }
     }
 }
 
@@ -225,13 +225,13 @@ impl ToWren for &str {
         // Wren copies the contents of the given string.
         // We have two copies here, first &str to CString, then Wren allocateString.
         let c_string = CString::new(self).expect("String contains a null byte");
-        unsafe { bindings::wrenSetSlotString(ctx.vm, slot, c_string.as_ptr()) }
+        unsafe { bindings::wrenSetSlotString(ctx.vm_ptr(), slot, c_string.as_ptr()) }
     }
 }
 
 impl ToWren for () {
     fn put(self, ctx: &mut WrenContext, slot: i32) {
-        unsafe { bindings::wrenSetSlotNull(ctx.vm, slot) }
+        unsafe { bindings::wrenSetSlotNull(ctx.vm_ptr(), slot) }
     }
 }
 
@@ -242,7 +242,7 @@ where
     fn put(self, ctx: &mut WrenContext, slot: i32) {
         match self {
             Some(val) => val.put(ctx, slot),
-            None => unsafe { bindings::wrenSetSlotNull(ctx.vm, slot) },
+            None => unsafe { bindings::wrenSetSlotNull(ctx.vm_ptr(), slot) },
         }
     }
 }

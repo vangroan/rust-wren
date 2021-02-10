@@ -156,15 +156,15 @@ impl ToWren for ForeignError {
     fn put(self, ctx: &mut WrenContext, slot: i32) {
         let c_string = CString::new(format!("{}", self.inner())).expect("String contains a null byte");
         unsafe {
-            bindings::wrenSetSlotString(ctx.vm, slot, c_string.as_ptr());
-            bindings::wrenAbortFiber(ctx.vm, slot);
+            bindings::wrenSetSlotString(ctx.vm_ptr(), slot, c_string.as_ptr());
+            bindings::wrenAbortFiber(ctx.vm_ptr(), slot);
         }
 
         // Send a stack frame to the error channel so the printed stack trace
         // can show the failure in the foreign function.
         //
         // Wren doesn't trace the call to the foreign function.
-        if let Some(userdata) = unsafe { WrenVm::get_user_data(ctx.vm) } {
+        if let Some(userdata) = unsafe { WrenVm::get_user_data(ctx.vm_ptr()) } {
             // TODO: Does the order of these two sends need to be reversed?
             if let ForeignError::Annotated { line, module, .. } = &self {
                 userdata

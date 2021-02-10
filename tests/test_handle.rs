@@ -301,7 +301,8 @@ fn test_handle_thread_send() {
         r#"
     var a = 42
     "#,
-    ).expect("Interpret failed");
+    )
+    .expect("Interpret failed");
 
     vm.context(|ctx| {
         let a = ctx.get_var("test_handle", "a").map(|r| r.leak());
@@ -311,5 +312,40 @@ fn test_handle_thread_send() {
         });
 
         join.join().unwrap();
+    });
+}
+
+// We should be able to retrieve a variable via a property, and use that as the receiver of a call reference.
+#[test]
+fn test_property_as_receiver() {
+    let mut vm = WrenBuilder::new().build();
+    vm.interpret(
+        "test_handle",
+        r#"
+    class Inner {
+      construct new() {}
+      callme() { 7 }
+    }
+
+    class Outer {
+      static inner { Inner.new() }
+    }
+    "#,
+    )
+    .expect("Interpret failed");
+
+    vm.context(|ctx| {
+        let prop_call = ctx.make_call_ref("test_handle", "Outer", "inner").unwrap();
+        let receiver = prop_call.call::<_, WrenRef>(ctx, ()).unwrap();
+
+        let callme_sym = FnSymbolRef::compile(ctx, "callme()").unwrap();
+        let callme = WrenCallRef::new(receiver, callme_sym);
+
+        assert_eq!(callme.call::<_, i32>(ctx, ()), Some(7));
+        assert_eq!(callme.call::<_, i32>(ctx, ()), Some(7));
+
+        let callme = callme.leak().unwrap();
+        assert_eq!(callme.call::<_, i32>(ctx, ()), Some(7));
+        assert_eq!(callme.call::<_, i32>(ctx, ()), Some(7));
     });
 }
