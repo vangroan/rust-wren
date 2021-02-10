@@ -17,7 +17,7 @@ pub fn gen_from_wren_impl(class: Ident) -> TokenStream {
         impl<'wren> FromWren<'wren> for #class {
             type Output = &'wren mut rust_wren::class::WrenCell<Self>;
 
-            fn get_slot(ctx: &mut rust_wren::WrenContext, slot_num: i32) -> Option<Self::Output> {
+            fn get_slot(ctx: &rust_wren::WrenContext, slot_num: i32) -> Option<Self::Output> {
                 <&mut WrenCell<Self>>::get_slot(ctx, slot_num)
             }
         }

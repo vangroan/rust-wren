@@ -265,8 +265,8 @@ impl<'wren> Drop for WrenRef<'wren> {
 impl<'wren> FromWren<'wren> for WrenRef<'wren> {
     type Output = Self;
 
-    fn get_slot(ctx: &mut WrenContext, slot_num: i32) -> Option<Self::Output> {
-        let handle = unsafe { bindings::wrenGetSlotHandle(ctx.vm, slot_num).as_mut().unwrap() };
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
+        let handle = unsafe { bindings::wrenGetSlotHandle(ctx.vm_ptr(), slot_num).as_mut().unwrap() };
         let destructors = ctx.destructor_sender();
         Some(WrenRef::new(handle, destructors))
     }
@@ -283,7 +283,7 @@ impl<'wren> ToWren for &WrenRef<'wren> {
     #[inline]
     fn put(self, ctx: &mut WrenContext, slot: i32) {
         unsafe {
-            bindings::wrenSetSlotHandle(ctx.vm, slot, self.handle);
+            bindings::wrenSetSlotHandle(ctx.vm_ptr(), slot, self.handle);
         }
     }
 }
@@ -297,7 +297,7 @@ impl<'wren> FnSymbolRef<'wren> {
     /// Regex pattern for validating function signatures.
     const SIG_PATTERN: &'static str = r#"^[a-zA-Z0-9_]+(\(([_,]*[^,])?\))$"#;
 
-    pub fn compile<'a, S>(ctx: &mut WrenContext, signature: S) -> Option<Self>
+    pub fn compile<'a, S>(ctx: &WrenContext, signature: S) -> Option<Self>
     where
         S: Into<Cow<'a, str>>,
     {
@@ -306,13 +306,18 @@ impl<'wren> FnSymbolRef<'wren> {
         }
         let sig_cow = signature.into();
         let sig = sig_cow.as_ref();
-        if !RE.is_match(sig) {
-            println!("Invalid function signature {}", sig);
-            return None;
-        }
+        // FIXME: Regex not enough to validate function signature, because of properties and operators.
+        // if !RE.is_match(sig) {
+        //     println!("Invalid function signature {}", sig);
+        //     return None;
+        // }
 
         let sig_c = CString::new(sig).expect("Function signature contained a null byte");
-        let handle = unsafe { bindings::wrenMakeCallHandle(ctx.vm, sig_c.as_ptr()).as_mut().unwrap() };
+        let handle = unsafe {
+            bindings::wrenMakeCallHandle(ctx.vm_ptr(), sig_c.as_ptr())
+                .as_mut()
+                .unwrap()
+        };
         let destructors = ctx.destructor_sender();
 
         Some(FnSymbolRef {
@@ -412,10 +417,10 @@ impl<'wren> WrenCallRef<'wren> {
     ///     # assert_eq!(result, -2.0);
     /// });
     /// ```
-    pub fn call<'a, A, R>(&self, ctx: &'a mut WrenContext, args: A) -> Option<R::Output>
+    pub fn call<'ctx, A, R>(&self, ctx: &'ctx mut WrenContext, args: A) -> Option<R::Output>
     where
         A: ToWren,
-        R: FromWren<'a>,
+        R: FromWren<'wren>,
     {
         // Receiver and arguments.
         ctx.ensure_slots(1 + args.size_hint());
@@ -423,13 +428,13 @@ impl<'wren> WrenCallRef<'wren> {
         // self.receiver.put(ctx, 0);
         log::trace!("Set slot receiver {:?}", self.receiver.handle);
         unsafe {
-            bindings::wrenSetSlotHandle(ctx.vm, 0, self.receiver.handle);
+            bindings::wrenSetSlotHandle(ctx.vm_ptr(), 0, self.receiver.handle);
         }
 
         args.put(ctx, 1);
 
         log::trace!("wrenCall {:?}", self.func.handle.handle);
-        let _result = unsafe { bindings::wrenCall(ctx.vm, self.func.handle.handle) };
+        let _result = unsafe { bindings::wrenCall(ctx.vm_ptr(), self.func.handle.handle) };
 
         // TODO: Check result
         R::get_slot(ctx, 0)
@@ -489,7 +494,7 @@ impl ToWren for &WrenHandle {
     #[inline]
     fn put(self, ctx: &mut WrenContext, slot: i32) {
         unsafe {
-            bindings::wrenSetSlotHandle(ctx.vm, slot, self.handle);
+            bindings::wrenSetSlotHandle(ctx.vm_ptr(), slot, self.handle);
         }
     }
 }
@@ -498,7 +503,7 @@ impl ToWren for &WrenHandle {
 impl ToWren for Rc<WrenHandle> {
     fn put(self, ctx: &mut WrenContext, slot: i32) {
         unsafe {
-            bindings::wrenSetSlotHandle(ctx.vm, slot, self.handle);
+            bindings::wrenSetSlotHandle(ctx.vm_ptr(), slot, self.handle);
         }
     }
 }
@@ -507,7 +512,7 @@ impl ToWren for Rc<WrenHandle> {
 impl ToWren for Arc<WrenHandle> {
     fn put(self, ctx: &mut WrenContext, slot: i32) {
         unsafe {
-            bindings::wrenSetSlotHandle(ctx.vm, slot, self.handle);
+            bindings::wrenSetSlotHandle(ctx.vm_ptr(), slot, self.handle);
         }
     }
 }
@@ -530,26 +535,27 @@ pub struct WrenCallHandle {
 }
 
 impl WrenCallHandle {
-    pub fn call<'a, A, R>(&self, ctx: &'a mut WrenContext, args: A) -> Option<R::Output>
+    pub fn call<'wren, 'ctx, A, R>(&self, ctx: &'ctx mut WrenContext, args: A) -> Option<R::Output>
     where
         A: ToWren,
-        R: FromWren<'a>,
+        R: FromWren<'wren>,
     {
         // Receiver and arguments.
         ctx.ensure_slots(1 + args.size_hint());
 
         unsafe {
-            bindings::wrenSetSlotHandle(ctx.vm, 0, self.receiver.handle);
+            bindings::wrenSetSlotHandle(ctx.vm_ptr(), 0, self.receiver.handle);
         }
 
         args.put(ctx, 1);
 
         log::trace!("wrenCall {:?}", self.func.handle.handle);
-        let result = unsafe { bindings::wrenCall(ctx.vm, self.func.handle.handle) };
+        let result = unsafe { bindings::wrenCall(ctx.vm_ptr(), self.func.handle.handle) };
 
         // TODO: Properly check result and return error.
         if result != bindings::WrenInterpretResult_WREN_RESULT_SUCCESS {
-            panic!("Call failed");
+            eprintln!("Call failed: {}", result);
+            return None;
         }
 
         R::get_slot(ctx, 0)
