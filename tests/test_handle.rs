@@ -168,8 +168,8 @@ fn test_non_existing() {
     vm.interpret("test_handle", "").unwrap();
 
     vm.context(|ctx| {
-        assert!(ctx.get_var("test_handle", "m").is_err());
-        assert!(ctx.get_var("unknown", "m").is_err());
+        assert!(ctx.get_var("test_handle", "m").is_none());
+        assert!(ctx.get_var("unknown", "m").is_none());
     });
 }
 
@@ -305,7 +305,7 @@ fn test_handle_thread_send() {
     .expect("Interpret failed");
 
     vm.context(|ctx| {
-        let a = ctx.get_var("test_handle", "a").map(|r| r.leak()).unwrap();
+        let a = ctx.get_var("test_handle", "a").map(|r| r.leak());
 
         let join = thread::spawn(move || {
             assert!(a.is_some());
