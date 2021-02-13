@@ -1,5 +1,5 @@
-use rust_wren::prelude::*;
-use std::cell::RefCell;
+use rust_wren::{prelude::*, WrenResult, WrenError};
+use std::{cell::RefCell, error::Error};
 
 /// Should check whether a variable exists or not.
 #[test]
@@ -63,4 +63,54 @@ fn test_write_fn() {
         // Wren prints a new line as a separate call, so number of calls are doubled.
         assert_eq!(*f.borrow(), 6);
     });
+}
+
+#[test]
+fn test_context_result() -> WrenResult<()> {
+    let mut vm = WrenBuilder::new().build();
+
+    vm.interpret("test_context", r#"
+    class Foo {
+      static bar() {}
+    }
+    "#)?;
+
+    vm.context_result(|ctx| {
+        let call_ref = ctx.make_call_ref("test_context", "Foo", "bar()")?;
+        call_ref.call::<_, ()>(ctx, ()).unwrap();
+
+        Ok(())
+    })?;
+
+    Ok(())
+}
+
+#[test]
+fn test_context_result_fail() -> Result<(), Box<dyn Error>> {
+    let mut vm = WrenBuilder::new().build();
+
+    vm.interpret("test_context", r#"
+    class Foo {
+      static bar() {}
+    }
+    "#)?;
+
+    let result = vm.context_result(|ctx| {
+        let call_ref = ctx.make_call_ref("test_context", "Undefined", "bar()")?;
+        call_ref.call::<_, ()>(ctx, ()).unwrap();
+
+        Ok(())
+    });
+
+    // Negative test; flip result.
+    match result {
+        Ok(_) => Err(format!("Unexpected success").into()),
+        Err(err) => {
+            if matches!(err, WrenError::VariableNotFound(_)) {
+                Ok(())
+            } else {
+                Err(format!("Unexpected error returned: {}", err).into())
+            }
+        }
+    }
 }

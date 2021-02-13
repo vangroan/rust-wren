@@ -19,6 +19,11 @@ pub enum WrenError {
         foreign: Option<Box<dyn ::std::error::Error>>,
         stack: Vec<WrenStackFrame>,
     },
+    ModuleNotFound(String),
+    VariableNotFound(String),
+    InvalidSlot,
+    // TODO: CString NulByte error
+    // TODO: NullPtr error
 }
 
 impl ::std::error::Error for WrenError {}
@@ -47,6 +52,9 @@ impl ::std::fmt::Display for WrenError {
 
                 Ok(())
             }
+            WrenError::ModuleNotFound(mod_name) => write!(f, "Module '{}' not found", mod_name),
+            WrenError::VariableNotFound(var_name) => write!(f, "Variable '{}' not found", var_name),
+            WrenError::InvalidSlot => write!(f, "Invalid slot"),
         }
     }
 }
