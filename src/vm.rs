@@ -30,7 +30,7 @@ pub struct WrenVm {
 impl WrenVm {
     #[must_use = "possible VM errors are contained in the returned result"]
     pub fn interpret(&mut self, module: &str, source: &str) -> WrenResult<()> {
-        let result : bindings::WrenInterpretResult = {
+        let result = {
             let vm = unsafe { self.vm.as_mut().unwrap() };
             let _guard = ContextGuard { vm: self };
 
@@ -40,54 +40,6 @@ impl WrenVm {
             unsafe { bindings::wrenInterpret(vm, c_module.as_ptr(), c_source.as_ptr()) }
         };
 
-        self.take_interpret_result(result)
-    }
-
-    pub fn context<F>(&mut self, func: F)
-    where
-        F: FnOnce(&mut WrenContext),
-    {
-        let vm = unsafe { self.vm.as_mut().unwrap() };
-        let _guard = ContextGuard { vm: self };
-        let mut ctx = WrenContext::new(vm);
-        func(&mut ctx);
-    }
-
-    pub fn context_result<F, R>(&mut self, func: F) -> WrenResult<R>
-        where
-            F: FnOnce(&mut WrenContext) -> WrenResult<R>,
-    {
-        let vm = unsafe { self.vm.as_mut().unwrap() };
-        let _guard = ContextGuard { vm: self };
-        let mut ctx = WrenContext::new(vm);
-        func(&mut ctx)
-    }
-
-    /// Returns the number of allocated slots.
-    #[inline]
-    pub fn slot_count(&self) -> i32 {
-        unsafe { bindings::wrenGetSlotCount(self.vm) }
-    }
-
-    /// Utility function for extracting the concrete [`UserData`] instance from
-    /// the given [`WrenVM`].
-    ///
-    /// Returns `None` if the user data within the VM is null.
-    ///
-    /// # Safety
-    ///
-    /// The caller must ensure the given VM pointer is valid and not null.
-    pub unsafe fn get_user_data<'a>(vm: *mut bindings::WrenVM) -> Option<&'a mut UserData> {
-        (bindings::wrenGetUserData(vm) as *mut UserData).as_mut()
-    }
-
-    /// Given the Wren result enum, build a result or error based
-    /// on the VM's state.
-    ///
-    /// This call is not idempotent. It drains the internal error
-    /// queue when the given enum is either compile error or runtime
-    /// error.
-    pub fn take_interpret_result(&mut self, result: bindings::WrenInterpretResult) -> WrenResult<()> {
         match result {
             bindings::WrenInterpretResult_WREN_RESULT_SUCCESS => Ok(()),
             bindings::WrenInterpretResult_WREN_RESULT_COMPILE_ERROR => {
@@ -137,6 +89,34 @@ impl WrenVm {
             }
             _ => unreachable!("Unknown Wren result type: {}", result),
         }
+    }
+
+    pub fn context<F>(&mut self, func: F)
+    where
+        F: FnOnce(&mut WrenContext),
+    {
+        let vm = unsafe { self.vm.as_mut().unwrap() };
+        let _guard = ContextGuard { vm: self };
+        let mut ctx = WrenContext::new(vm);
+        func(&mut ctx);
+    }
+
+    /// Returns the number of allocated slots.
+    #[inline]
+    pub fn slot_count(&self) -> i32 {
+        unsafe { bindings::wrenGetSlotCount(self.vm) }
+    }
+
+    /// Utility function for extracting the concrete [`UserData`] instance from
+    /// the given [`WrenVM`].
+    ///
+    /// Returns `None` if the user data within the VM is null.
+    ///
+    /// # Safety
+    ///
+    /// The caller must ensure the given VM pointer is valid and not null.
+    pub unsafe fn get_user_data<'a>(vm: *mut bindings::WrenVM) -> Option<&'a mut UserData> {
+        (bindings::wrenGetUserData(vm) as *mut UserData).as_mut()
     }
 
     fn maintain(&mut self) {
@@ -352,21 +332,21 @@ impl<'wren> WrenContext<'wren> {
     /// See:
     /// - [#717 When using wrenGetVariable, it now returns an int to inform you of failure](https://github.com/wren-lang/wren/pull/717)
     /// - [#601 wrenGetVariable does not seem to return a sane value](https://github.com/wren-lang/wren/issues/601)
-    pub fn get_var(&self, module: &str, name: &str) -> WrenResult<WrenRef<'wren>> {
+    pub fn get_var(&self, module: &str, name: &str) -> Option<WrenRef<'wren>> {
         trace!("get_var({}, {})", module, name);
         let c_module = CString::new(module).expect("Module name contains a null byte");
         let c_name = CString::new(name).expect("Name name contains a null byte");
 
         let module_exists = unsafe { bindings::wrenHasModule(self.vm_ptr(), c_module.as_ptr()) };
         if !module_exists {
-            return Err(WrenError::ModuleNotFound(module.to_string()));
+            return None;
         }
 
         let var_exists = unsafe { bindings::wrenHasVariable(self.vm_ptr(), c_module.as_ptr(), c_name.as_ptr()) };
         if !var_exists {
-            return Err(WrenError::VariableNotFound(name.to_string()));
+            return None;
         }
-        trace!("Module and variable exist {}.{}", module, name);
+        trace!("Module and variable exists {}.{}", module, name);
 
         self.ensure_slots(1);
 
@@ -376,7 +356,7 @@ impl<'wren> WrenContext<'wren> {
         trace!("Retrieved variable {}.{} of type {:?}", module, name, self.slot_type(0));
 
         // If the module or variable don't exist, there's junk in the slot.
-        self.get_slot::<WrenRef<'wren>>(0).ok_or(WrenError::InvalidSlot)
+        self.get_slot::<WrenRef<'wren>>(0)
     }
 
     /// Checks whether a variable exists.
@@ -439,10 +419,10 @@ impl<'wren> WrenContext<'wren> {
     ///
     /// Will return an error if the given variable doesn't exist, or the function signature has
     /// an invalid format.
-    pub fn make_call_ref(&self, module: &str, variable: &str, func_sig: &str) -> WrenResult<WrenCallRef<'wren>> {
+    pub fn make_call_ref(&self, module: &str, variable: &str, func_sig: &str) -> Option<WrenCallRef<'wren>> {
         let receiver = self.get_var(module, variable)?;
         let func = FnSymbolRef::compile(self, func_sig)?;
-        Ok(WrenCallRef::new(receiver, func))
+        Some(WrenCallRef::new(receiver, func))
     }
 
     /// Retrieve the channel sender for Wren handles that need to be released.

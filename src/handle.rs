@@ -189,7 +189,6 @@ use crate::{
     bindings,
     value::{FromWren, ToWren},
     vm::WrenContext,
-    errors::{WrenResult, WrenError},
 };
 use regex::Regex;
 use std::{
@@ -298,7 +297,7 @@ impl<'wren> FnSymbolRef<'wren> {
     /// Regex pattern for validating function signatures.
     const SIG_PATTERN: &'static str = r#"^[a-zA-Z0-9_]+(\(([_,]*[^,])?\))$"#;
 
-    pub fn compile<'a, S>(ctx: &WrenContext, signature: S) -> WrenResult<Self>
+    pub fn compile<'a, S>(ctx: &WrenContext, signature: S) -> Option<Self>
     where
         S: Into<Cow<'a, str>>,
     {
@@ -321,7 +320,7 @@ impl<'wren> FnSymbolRef<'wren> {
         };
         let destructors = ctx.destructor_sender();
 
-        Ok(FnSymbolRef {
+        Some(FnSymbolRef {
             handle: WrenRef::new(handle, destructors),
         })
     }
