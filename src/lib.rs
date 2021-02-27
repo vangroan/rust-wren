@@ -55,7 +55,3 @@ pub mod prelude {
 pub mod generation {
     pub use inventory;
 }
-
-pub trait HelloMacro {
-    fn hello_macro();
-}

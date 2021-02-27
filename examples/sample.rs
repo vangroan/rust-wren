@@ -1,7 +1,4 @@
-#[macro_use]
-extern crate rust_wren_derive;
-
-use rust_wren::{prelude::*, HelloMacro};
+use rust_wren::prelude::*;
 
 const SOURCE: &str = r##"
 System.print("I am running in a VM!")
@@ -28,7 +25,7 @@ foreign class Vector3 {
 "##;
 
 #[wren_class(name=Foo)]
-#[derive(HelloMacro, Debug)]
+#[derive(Debug)]
 struct ProcFoo {}
 
 #[wren_methods]
@@ -59,6 +56,5 @@ fn main() {
     )
     .unwrap();
 
-    ProcFoo::hello_macro();
     println!("{:?} has wren name {}", ProcFoo {}, ProcFoo::NAME);
 }

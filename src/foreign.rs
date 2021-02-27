@@ -102,7 +102,7 @@ impl ForeignBindings {
         vm: *mut bindings::WrenVM,
         module: *const c_char,
         class_name: *const c_char,
-        is_static: bool, // TODO
+        is_static: bool,
         signature: *const c_char,
     ) -> bindings::WrenForeignMethodFn {
         let userdata = unsafe { WrenVm::get_user_data(vm).expect("User data is null") };

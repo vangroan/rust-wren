@@ -42,9 +42,9 @@ pub extern "C" fn write_function(vm: *mut bindings::WrenVM, text: *const c_char)
             }
             Err(err) => {
                 userdata
-                    .error_tx
-                    .send(WrenVmError::Foreign(ForeignError::Simple(Box::new(err))))
-                    .unwrap_or_else(|err| eprintln!("Failed sending Wren runtime error: {:?}", err));
+                    .errors
+                    .borrow_mut()
+                    .push(WrenVmError::Foreign(ForeignError::Simple(Box::new(err))));
             }
         }
     }
@@ -64,38 +64,29 @@ pub extern "C" fn error_function(
             bindings::WrenErrorType_WREN_ERROR_COMPILE => {
                 let c_module = unsafe { CStr::from_ptr(module) };
                 let c_message = unsafe { CStr::from_ptr(message) };
-                userdata
-                    .error_tx
-                    .send(WrenVmError::Compile {
-                        module: SmolStr::new(c_module.to_str().expect("Failed to convert module name to UTF-8")),
-                        message: String::from(c_message.to_str().expect("Failed to convert message to UTF-8")),
-                        line,
-                    })
-                    .unwrap_or_else(|err| eprintln!("Failed sending Wren compile error: {:?}", err));
+                userdata.errors.borrow_mut().push(WrenVmError::Compile {
+                    module: SmolStr::new(c_module.to_str().expect("Failed to convert module name to UTF-8")),
+                    message: String::from(c_message.to_str().expect("Failed to convert message to UTF-8")),
+                    line,
+                });
             }
             bindings::WrenErrorType_WREN_ERROR_STACK_TRACE => {
                 let c_module = unsafe { CStr::from_ptr(module) };
                 let c_message = unsafe { CStr::from_ptr(message) };
 
-                userdata
-                    .error_tx
-                    .send(WrenVmError::StackTrace {
-                        module: SmolStr::new(c_module.to_str().expect("Failed to convert module name to UTF-8")),
-                        function: SmolStr::from(c_message.to_str().expect("Failed to convert message to UTF-8")),
-                        line,
-                        is_foreign: false,
-                    })
-                    .unwrap_or_else(|err| eprintln!("Failed sending Wren compile error: {:?}", err));
+                userdata.errors.borrow_mut().push(WrenVmError::StackTrace {
+                    module: SmolStr::new(c_module.to_str().expect("Failed to convert module name to UTF-8")),
+                    function: SmolStr::from(c_message.to_str().expect("Failed to convert message to UTF-8")),
+                    line,
+                    is_foreign: false,
+                });
             }
             bindings::WrenErrorType_WREN_ERROR_RUNTIME => {
                 let c_message = unsafe { CStr::from_ptr(message) };
 
-                userdata
-                    .error_tx
-                    .send(WrenVmError::Runtime {
-                        msg: String::from(c_message.to_str().expect("Failed to convert message to UTF-8")),
-                    })
-                    .unwrap_or_else(|err| eprintln!("Failed sending Wren runtime error: {:?}", err));
+                userdata.errors.borrow_mut().push(WrenVmError::Runtime {
+                    msg: String::from(c_message.to_str().expect("Failed to convert message to UTF-8")),
+                });
             }
             _ => {
                 unreachable!("Unknown Wren error type: {}", error_type);

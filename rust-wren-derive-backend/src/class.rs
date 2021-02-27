@@ -17,7 +17,7 @@ pub fn gen_from_wren_impl(class: Ident) -> TokenStream {
         impl<'wren> FromWren<'wren> for #class {
             type Output = &'wren mut rust_wren::class::WrenCell<Self>;
 
-            fn get_slot(ctx: &rust_wren::WrenContext, slot_num: i32) -> Option<Self::Output> {
+            fn get_slot(ctx: &rust_wren::WrenContext, slot_num: i32) -> rust_wren::WrenResult<Self::Output> {
                 <&mut WrenCell<Self>>::get_slot(ctx, slot_num)
             }
         }
@@ -155,7 +155,7 @@ impl WrenClassArgs {
     }
 }
 
-/// TODO
+/// TODO: Inventory to register methods on binary execute.
 #[allow(dead_code)]
 fn gen_class_invetory(cls_ident: &Ident) -> syn::Result<TokenStream> {
     let inv_cls = format_ident!("WrenClassInvestory__{}", cls_ident);

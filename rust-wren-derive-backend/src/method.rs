@@ -1,9 +1,10 @@
 use proc_macro2::{Literal, Span, TokenStream};
-use quote::{format_ident, quote};
+use quote::{format_ident, quote, quote_spanned};
 use syn::{
     parenthesized,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
+    spanned::Spanned,
     Attribute, Expr, ExprAssign, FnArg, Ident, ImplItem, ImplItemMethod, ItemImpl, Lit, Signature, Token, Type,
 };
 
@@ -93,12 +94,24 @@ fn gen_wren_construct(_cls: &Type, method: &ImplItemMethod) -> syn::Result<Token
             }
             FnArg::Typed(arg_ty) => {
                 let arg_type = arg_ty.ty.clone();
-                args.push(quote! {
-                    // rust_wren::bindings:wrenGetSlotString();
-                    // <#arg_type as rust_wren::value::FromWren>::get_slot(&mut ctx, #idx_lit)
-                    //     .unwrap_or_else(|| panic!("Getting slot {} for method '{}' failed", #idx_lit, #method_name))
-                    ctx.get_slot::<#arg_type>(#idx_lit)
-                        .unwrap_or_else(|| panic!("Getting slot {} for method '{}' failed", #idx_lit, #method_name))
+                let span = arg_type.span().clone();
+                args.push(quote_spanned! {span=>
+                    match ctx.get_slot::<#arg_type>(#idx_lit) {
+                        Ok(value) => value,
+                        Err(err) => {
+                            let wren_error = rust_wren::WrenError::new_foreign_call(
+                                    #method_name,
+                                    Box::new(rust_wren::WrenError::GetArg { slot: #idx_lit, cause: err.into(), })
+                                );
+
+                            // `ForeignError` is our mechanism for aborting a Wren fiber
+                            // with a Rust error.
+                            let foreign_error = rust_wren::ForeignError::Simple(Box::new(wren_error));
+                            foreign_error.put(&mut ctx, 0);
+
+                            return;
+                        }
+                    }
                 });
             }
         }
@@ -107,7 +120,11 @@ fn gen_wren_construct(_cls: &Type, method: &ImplItemMethod) -> syn::Result<Token
     // Wrapped in WrenCell because the multiple pointers can be retrieved from VM.
     let ty = quote! { WrenCell<Self> };
 
-    let tokens = quote! {
+    // Get span to function return type, so user gets a nice error when
+    // the return type is incorrect.
+    let method_span = method.sig.span().clone();
+
+    let tokens = quote_spanned! {method_span=>
         #method
 
         /// Allocation function called by Wren when a class is constructed.
@@ -116,6 +133,7 @@ fn gen_wren_construct(_cls: &Type, method: &ImplItemMethod) -> syn::Result<Token
         /// the value.
         ///
         /// See: [Storing C Data](https://wren.io/embedding/storing-c-data.html)
+        #[allow(unused_mut)]
         extern "C" fn __wren_allocate(vm: *mut rust_wren::bindings::WrenVM) {
             use rust_wren::class::WrenCell;
 
@@ -123,10 +141,12 @@ fn gen_wren_construct(_cls: &Type, method: &ImplItemMethod) -> syn::Result<Token
             let wren_ptr: *mut #ty = unsafe {
                 rust_wren::bindings::wrenSetSlotNewForeign(vm, 0, 0, ::std::mem::size_of::<#ty>() as usize) as _
             };
-            let mut wren_val: &mut #ty = unsafe { wren_ptr.as_mut().unwrap() };
+            let wren_val: &mut #ty = unsafe { wren_ptr.as_mut().unwrap() };
 
             // Context for extracting slots.
+            // If construct doesn't take arguments, this `vm` and `ctx` are unused.
             let vm: &mut rust_wren::bindings::WrenVM = unsafe { vm.as_mut().unwrap() };
+            #[allow(unused_variables)]
             let mut ctx = rust_wren::WrenContext::new(vm);
 
             // TODO: Constructor method is not required, so make this optional.
@@ -203,6 +223,7 @@ fn gen_wren_method(_cls: &Type, method: &mut ImplItemMethod, is_static: bool) ->
 
     let wrap_ident = format_ident!("__wren_wrap_{}", method.sig.ident);
     let wrap = quote! {
+        #[doc(hidden)]
         extern "C" fn #wrap_ident(vm: *mut rust_wren::bindings::WrenVM) {
             // Context for extracting slots.
             let vm: &mut rust_wren::bindings::WrenVM = unsafe { vm.as_mut().unwrap() };
@@ -263,20 +284,82 @@ fn gen_args_from_slots(ctx: &Ident, method: &ImplItemMethod, is_static: bool) ->
             let idx_lit = Lit::new(Literal::i32_unsuffixed(idx as i32 + offset));
 
             match arg {
-                FnArg::Receiver(_) => {
+                FnArg::Receiver(recv) => {
+                    // TODO: When receiver's `reference` field is None, it's
+                    //       a move. The `WrenCell` should be borrowed and cloned.
+                    //       The user would need an error with a nice span
+                    //       indicating the type needs to implement clone.
+                    //       Could be useful for value types like Vectors or Matrices.
+                    //       We can't really move out of Wren, because we can't take
+                    //       ownership of the memory until it's garbage collected.
+                    // let is_ref = rect.reference.is_some();
+
+                    // Important semantic choice that allows the user
+                    // to pass a foreign class as receiver and function
+                    // arguments as long as everything is immutable.
+                    let is_mut = recv.mutability.is_some();
+                    let borrow_call = if is_mut {
+                        format_ident!("try_borrow_mut")
+                    } else {
+                        format_ident!("try_borrow")
+                    };
+
+                    // Borrow the inner value of the returned `RefMut<Self>` or `Ref<Self>`;
+                    let borrow_return = if is_mut {
+                        quote! { &mut *result.unwrap() }
+                    } else {
+                        quote! { &*result.unwrap() }
+                    };
+
                     quote! {
                         {
-                            let ref_cell: &mut ::rust_wren::class::WrenCell<Self> = #ctx.get_slot::<Self>(#idx_lit)
-                                .unwrap_or_else(|| panic!("Getting slot {} for method '{}' failed", #idx_lit, #method_name))  ;
-                            &mut *ref_cell.borrow_mut()
+                            // let ref_cell: &mut ::rust_wren::class::WrenCell<Self> = #ctx.get_slot::<Self>(#idx_lit)
+                            //     .unwrap_or_else(|err| panic!("Getting slot {} for method '{}' failed: {}", #idx_lit, #method_name, err));
+                            let result = #ctx.get_slot::<Self>(#idx_lit)
+                                .and_then(|wren_cell| wren_cell.#borrow_call())
+                                .map_err(|err| {
+                                    let wren_error = rust_wren::WrenError::new_foreign_call(
+                                            #method_name,
+                                            Box::new(rust_wren::WrenError::GetArg { slot: #idx_lit, cause: err.into(), })
+                                        );
+
+                                    rust_wren::ForeignError::Simple(Box::new(wren_error))
+                                });
+
+                            // Scoping around `RefCell`, `Ref` and `RefMut` are tricky.
+                            //
+                            // If the `Ref` or `RefMut` end up in variables in this block,
+                            // then they will be dropped while
+                            if let Err(foreign_error) = result {
+                                // `ForeignError` is our mechanism for aborting a Wren fiber
+                                // with a Rust error.
+                                foreign_error.put(&mut ctx, 0);
+                                return;
+                            }
+
+                            #borrow_return
                         }
                     }
                 }
                 FnArg::Typed(pat_ty) => {
                     let arg_type = pat_ty.ty.clone();
                     quote! {
-                        #ctx.get_slot::<#arg_type>(#idx_lit)
-                            .unwrap_or_else(|| panic!("Getting slot {} for method '{}' failed", #idx_lit, #method_name))
+                        match ctx.get_slot::<#arg_type>(#idx_lit) {
+                            Ok(value) => value,
+                            Err(err) => {
+                                let wren_error = rust_wren::WrenError::new_foreign_call(
+                                        #method_name,
+                                        Box::new(rust_wren::WrenError::GetArg { slot: #idx_lit, cause: err.into(), })
+                                    );
+
+                                // `ForeignError` is our mechanism for aborting a Wren fiber
+                                // with a Rust error.
+                                let foreign_error = rust_wren::ForeignError::Simple(Box::new(wren_error));
+                                foreign_error.put(&mut ctx, 0);
+
+                                return;
+                            }
+                        }
                     }
                 }
             }
