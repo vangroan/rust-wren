@@ -1,7 +1,7 @@
 //! Class property generation.
 use proc_macro2::{Ident, TokenStream};
 use quote::{format_ident, quote, quote_spanned};
-use syn::{spanned::Spanned, Fields, ItemStruct, Type};
+use syn::{spanned::Spanned, Field, Fields, ItemStruct, Type};
 
 pub fn gen_class_props(class: &ItemStruct) -> syn::Result<TokenStream> {
     let get_set = format_ident!("getset");
@@ -13,38 +13,29 @@ pub fn gen_class_props(class: &ItemStruct) -> syn::Result<TokenStream> {
     let mut sets = vec![];
     let mut assert_clone = vec![];
 
-    for (idx, field) in class.fields.iter().enumerate() {
+    for (field_idx, field) in class.fields.iter().enumerate() {
         for attr in &field.attrs {
-            // Tuple struct fields don't have identifiers, so we
-            // have to access it via an integer identifier.
-            let field_ident = match field.ident {
-                Some(ref ident) => ident.clone(),
-                None => format_ident!("{}", idx),
-            };
-
-            let field_ty = field.ty.clone();
-
-            // Compile time assertion to provide user friendly error
-            // when property does not implement `Clone`.
-            let field_span = field_ty.span();
-            let assert_ident = format_ident!("_{}_AssertSync", field_ident);
-            assert_clone.push(quote_spanned! {field_span=>
-                #[allow(non_camel_case_types)]
-                struct #assert_ident where #field_ty: Clone;
-            });
-
             match attr.path.get_ident() {
                 ident if ident == Some(&get) => {
+                    let field_ident = get_field_ident(field_idx, field);
                     let (g, r) = gen_get(&field_ident);
                     gets.push(g);
                     registers.push(r);
+                    assert_clone.push(gen_field_assert(field_idx, field));
                 }
                 ident if ident == Some(&set) => {
+                    let field_ident = get_field_ident(field_idx, field);
+                    let field_ty = field.ty.clone();
+
                     let (s, r) = gen_set(&field_ident, &field_ty);
                     sets.push(s);
                     registers.push(r);
+                    assert_clone.push(gen_field_assert(field_idx, field));
                 }
                 ident if ident == Some(&get_set) => {
+                    let field_ident = get_field_ident(field_idx, field);
+                    let field_ty = field.ty.clone();
+
                     let (g, r) = gen_get(&field_ident);
                     gets.push(g);
                     registers.push(r);
@@ -52,6 +43,8 @@ pub fn gen_class_props(class: &ItemStruct) -> syn::Result<TokenStream> {
                     let (s, r) = gen_set(&field_ident, &field_ty);
                     sets.push(s);
                     registers.push(r);
+
+                    assert_clone.push(gen_field_assert(field_idx, field));
                 }
                 _ => {}
             }
@@ -75,6 +68,40 @@ pub fn gen_class_props(class: &ItemStruct) -> syn::Result<TokenStream> {
     };
 
     Ok(gen)
+}
+
+fn get_field_ident(_field_index: usize, field: &Field) -> Ident {
+    // Tuple struct fields don't have identifiers, so we
+    // have to access it via an integer identifier.
+    match field.ident {
+        Some(ref ident) => ident.clone(),
+        None => {
+            // FIXME: Find a solution for tuple structs.
+            //        Identifies cannot start with numbers,
+            //        so tuple field accessors have to be
+            //        number literals.
+            // format_ident!("{}", field_index);
+            unimplemented!("FIXME: Tuple field accessors")
+        }
+    }
+}
+
+/// Generates an assertion helper that will present the user
+/// with an error pointing to the pertinent field when its
+/// type does not implement `Clone`.
+fn gen_field_assert(field_index: usize, field: &Field) -> TokenStream {
+    let field_ident = get_field_ident(field_index, field);
+    let field_ty = field.ty.clone();
+
+    // Compile time assertion to provide user friendly error
+    // when property does not implement `Clone`.
+    let field_span = field_ty.span();
+    let assert_ident = format_ident!("_{}_AssertClone", field_ident);
+
+    quote_spanned! {field_span=>
+        #[allow(non_camel_case_types)]
+        struct #assert_ident where #field_ty: Clone;
+    }
 }
 
 /// Generate property get function.
