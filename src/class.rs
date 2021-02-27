@@ -96,9 +96,9 @@
 //! sprite.set(Pos.new(2, 4))
 //! "#).expect("Interpret failed");
 //! ```
-use crate::ModuleBuilder;
-pub use std::cell::{BorrowError, BorrowMutError, Ref, RefMut};
-use std::{any::TypeId, cell::RefCell, os::raw::c_void};
+use crate::{ModuleBuilder, WrenError, WrenResult};
+pub use std::cell::{Ref, RefMut};
+use std::{any::TypeId, cell::RefCell, fmt, os::raw::c_void};
 
 /// Trait for any type to be registered as a foreign class.
 pub trait WrenForeignClass {
@@ -180,11 +180,11 @@ where
     /// A pointer to data of another type - which passes the type check regardless - will return a
     /// `Some` containing a `WrenCell` cast from bad memory.
     #[inline]
-    pub unsafe fn from_ptr<'a>(maybe_cell: *const c_void) -> Option<&'a Self> {
+    pub unsafe fn from_ptr<'a>(maybe_cell: *const c_void) -> WrenResult<&'a Self> {
         if !Self::is_type(maybe_cell) {
-            None
+            Err(WrenError::ForeignType)
         } else {
-            (maybe_cell as *const Self).as_ref()
+            (maybe_cell as *const Self).as_ref().ok_or_else(|| WrenError::NullPtr)
         }
     }
 
@@ -198,11 +198,11 @@ where
     /// A pointer to data of another type - which passes the type check regardless - will return a
     /// `Some` containing a `WrenCell` cast from bad memory.
     #[inline]
-    pub unsafe fn from_ptr_mut<'a>(maybe_cell: *mut c_void) -> Option<&'a mut Self> {
+    pub unsafe fn from_ptr_mut<'a>(maybe_cell: *mut c_void) -> WrenResult<&'a mut Self> {
         if !Self::is_type(maybe_cell) {
-            None
+            Err(WrenError::ForeignType)
         } else {
-            (maybe_cell as *mut Self).as_mut()
+            (maybe_cell as *mut Self).as_mut().ok_or_else(|| WrenError::NullPtr)
         }
     }
 
@@ -217,13 +217,13 @@ where
     }
 
     #[inline]
-    pub fn try_borrow(&self) -> Result<Ref<'_, T>, BorrowError> {
-        self.cell.try_borrow()
+    pub fn try_borrow(&self) -> WrenResult<Ref<'_, T>> {
+        self.cell.try_borrow().map_err(|_| WrenError::BorrowError)
     }
 
     #[inline]
-    pub fn try_borrow_mut(&self) -> Result<RefMut<'_, T>, BorrowMutError> {
-        self.cell.try_borrow_mut()
+    pub fn try_borrow_mut(&self) -> WrenResult<RefMut<'_, T>> {
+        self.cell.try_borrow_mut().map_err(|_| WrenError::BorrowMutError)
     }
 
     /// Given a pointer to a `WrenCell`, check if the contents type matches the type
@@ -251,6 +251,18 @@ where
                 *maybe_type_id == TypeId::of::<T>()
             }
         }
+    }
+}
+
+impl<T> fmt::Debug for WrenCell<T>
+where
+    T: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.debug_struct("WrenCell")
+            .field("type_id", &self.type_id)
+            .field("cell", &self.cell)
+            .finish()
     }
 }
 
@@ -295,14 +307,14 @@ mod test {
         });
         let void_ptr = &mut a as *mut _ as *mut c_void;
 
-        assert!(unsafe { WrenCell::<u64>::from_ptr(void_ptr).is_none() });
-        assert!(unsafe { WrenCell::<u64>::from_ptr_mut(void_ptr).is_none() });
-        assert!(unsafe { WrenCell::<TypeId>::from_ptr(void_ptr).is_none() });
-        assert!(unsafe { WrenCell::<TypeId>::from_ptr_mut(void_ptr).is_none() });
+        assert!(unsafe { WrenCell::<u64>::from_ptr(void_ptr).is_err() });
+        assert!(unsafe { WrenCell::<u64>::from_ptr_mut(void_ptr).is_err() });
+        assert!(unsafe { WrenCell::<TypeId>::from_ptr(void_ptr).is_err() });
+        assert!(unsafe { WrenCell::<TypeId>::from_ptr_mut(void_ptr).is_err() });
 
         {
             let retrieved = unsafe { WrenCell::<Test>::from_ptr_mut(void_ptr) };
-            assert!(retrieved.is_some());
+            assert!(retrieved.is_ok());
             let mut inner = retrieved.unwrap().borrow_mut();
             assert_eq!(inner.s.as_str(), "test string a");
             assert_eq!(inner.a, [1, 2, 3, 4]);
@@ -313,7 +325,7 @@ mod test {
         {
             // Note: cell has inner mutability.
             let retrieved = unsafe { WrenCell::<Test>::from_ptr(void_ptr) };
-            assert!(retrieved.is_some());
+            assert!(retrieved.is_ok());
             let inner = retrieved.unwrap().borrow_mut();
             // Mutated in previous step
             assert_eq!(inner.s.as_str(), "mutated");

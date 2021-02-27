@@ -12,7 +12,7 @@ use log::trace;
 use std::{
     any::TypeId,
     borrow::{Borrow, Cow},
-    cell::Cell,
+    cell::{Cell, RefCell},
     ffi::CString,
     marker::PhantomData,
     mem,
@@ -24,13 +24,12 @@ use std::{
 pub struct WrenVm {
     vm: *mut bindings::WrenVM,
     handle_rx: Receiver<*mut bindings::WrenHandle>,
-    error_rx: Receiver<WrenVmError>,
 }
 
 impl WrenVm {
     #[must_use = "possible VM errors are contained in the returned result"]
     pub fn interpret(&mut self, module: &str, source: &str) -> WrenResult<()> {
-        let result = {
+        let result_id: bindings::WrenInterpretResult = {
             let vm = unsafe { self.vm.as_mut().unwrap() };
             let _guard = ContextGuard { vm: self };
 
@@ -40,55 +39,8 @@ impl WrenVm {
             unsafe { bindings::wrenInterpret(vm, c_module.as_ptr(), c_source.as_ptr()) }
         };
 
-        match result {
-            bindings::WrenInterpretResult_WREN_RESULT_SUCCESS => Ok(()),
-            bindings::WrenInterpretResult_WREN_RESULT_COMPILE_ERROR => {
-                let mut errors: Vec<WrenCompileError> = vec![];
-
-                while let Ok(error) = self.error_rx.try_recv() {
-                    match error {
-                        WrenVmError::Compile { module, message, line } => {
-                            errors.push(WrenCompileError { module, message, line })
-                        }
-                        err => unreachable!("Unexpected {:?}", err),
-                    }
-                }
-
-                Err(WrenError::CompileError(errors))
-            }
-            bindings::WrenInterpretResult_WREN_RESULT_RUNTIME_ERROR => {
-                let mut message = String::new();
-                let mut foreign: Option<Box<dyn ::std::error::Error>> = None;
-                let mut stack: Vec<WrenStackFrame> = vec![];
-
-                while let Ok(error) = self.error_rx.try_recv() {
-                    match error {
-                        WrenVmError::Runtime { msg } => message.push_str(msg.as_str()),
-                        WrenVmError::StackTrace {
-                            module,
-                            function,
-                            line,
-                            is_foreign,
-                        } => {
-                            stack.push(WrenStackFrame {
-                                module,
-                                function,
-                                line,
-                                is_foreign,
-                            });
-                        }
-                        WrenVmError::Foreign(err) => foreign = Some(err.take_inner()),
-                        err => unreachable!("Unexpected {:?}", err),
-                    }
-                }
-                Err(WrenError::RuntimeError {
-                    message,
-                    foreign,
-                    stack,
-                })
-            }
-            _ => unreachable!("Unknown Wren result type: {}", result),
-        }
+        // self.take_interpret_result(result)
+        Self::take_errors(self.vm, result_id)
     }
 
     pub fn context<F>(&mut self, func: F)
@@ -99,6 +51,16 @@ impl WrenVm {
         let _guard = ContextGuard { vm: self };
         let mut ctx = WrenContext::new(vm);
         func(&mut ctx);
+    }
+
+    pub fn context_result<F, R>(&mut self, func: F) -> WrenResult<R>
+    where
+        F: FnOnce(&mut WrenContext) -> WrenResult<R>,
+    {
+        let vm = unsafe { self.vm.as_mut().unwrap() };
+        let _guard = ContextGuard { vm: self };
+        let mut ctx = WrenContext::new(vm);
+        func(&mut ctx)
     }
 
     /// Returns the number of allocated slots.
@@ -117,6 +79,79 @@ impl WrenVm {
     /// The caller must ensure the given VM pointer is valid and not null.
     pub unsafe fn get_user_data<'a>(vm: *mut bindings::WrenVM) -> Option<&'a mut UserData> {
         (bindings::wrenGetUserData(vm) as *mut UserData).as_mut()
+    }
+
+    /// Given the Wren result enum, build a result or error based
+    /// on the VM's state.
+    ///
+    /// This call is not idempotent. It drains the internal error
+    /// queue when the given enum is either compile error or runtime
+    /// error.
+    #[doc(hidden)]
+    pub fn take_errors(vm: *mut bindings::WrenVM, result_id: bindings::WrenInterpretResult) -> WrenResult<()> {
+        let userdata = unsafe { WrenVm::get_user_data(vm).ok_or_else(|| WrenError::UserDataNull)? };
+        let mut errors = userdata.errors.borrow_mut();
+
+        match result_id {
+            bindings::WrenInterpretResult_WREN_RESULT_SUCCESS => Ok(()),
+            bindings::WrenInterpretResult_WREN_RESULT_COMPILE_ERROR => {
+                if errors.is_empty() {
+                    return Err(WrenError::ErrorAbsent(result_id));
+                }
+
+                let compile_errors = errors
+                    .drain(..)
+                    .map(|err| match err {
+                        WrenVmError::Compile { module, message, line } => WrenCompileError { module, message, line },
+                        err => unreachable!("Unexpected VM error {:?}", err),
+                    })
+                    .collect::<Vec<_>>();
+
+                Err(WrenError::CompileError(compile_errors))
+            }
+            bindings::WrenInterpretResult_WREN_RESULT_RUNTIME_ERROR => {
+                if errors.is_empty() {
+                    return Err(WrenError::ErrorAbsent(result_id));
+                }
+
+                let mut message = String::new();
+                let mut foreign: Option<Box<dyn ::std::error::Error>> = None;
+                let mut stack: Vec<WrenStackFrame> = vec![];
+
+                for err in errors.drain(..) {
+                    match err {
+                        WrenVmError::Runtime { msg } => message.push_str(msg.as_str()),
+                        WrenVmError::StackTrace {
+                            module,
+                            function,
+                            line,
+                            is_foreign,
+                        } => {
+                            stack.push(WrenStackFrame {
+                                module,
+                                function,
+                                line,
+                                is_foreign,
+                            });
+                        }
+                        WrenVmError::Foreign(err) => {
+                            if foreign.is_some() {
+                                panic!("Second foreign error encountered in error queue: {:?}", err);
+                            }
+                            foreign = Some(err.take_inner())
+                        }
+                        err => unreachable!("Unexpected VM error {:?}", err),
+                    }
+                }
+
+                Err(WrenError::RuntimeError {
+                    message,
+                    foreign,
+                    stack,
+                })
+            }
+            _ => unreachable!("Unknown Wren result type: {}", result_id),
+        }
     }
 
     fn maintain(&mut self) {
@@ -212,9 +247,6 @@ impl WrenBuilder {
         // Wren handle pointers that need to be released.
         let (handle_tx, handle_rx) = channel();
 
-        // Errors are piped through a channel to cross the boundary between an extern C callback and outer Rust code.
-        let (error_tx, error_rx) = channel();
-
         let mut config = unsafe {
             let mut uninit_config = mem::MaybeUninit::<bindings::WrenConfiguration>::zeroed();
             bindings::wrenInitConfiguration(uninit_config.as_mut_ptr());
@@ -229,7 +261,7 @@ impl WrenBuilder {
         let user_data = UserData {
             foreign,
             handle_tx,
-            error_tx,
+            errors: RefCell::new(Vec::new()),
             write_fn: write_fn.unwrap_or_else(WrenBuilder::default_write_fn),
         };
         config.userData = Box::into_raw(Box::new(user_data)) as _;
@@ -243,11 +275,7 @@ impl WrenBuilder {
             panic!("Unexpected null result when creating WrenVM via C");
         }
 
-        WrenVm {
-            vm,
-            handle_rx,
-            error_rx,
-        }
+        WrenVm { vm, handle_rx }
     }
 }
 
@@ -280,7 +308,7 @@ impl<'wren> WrenContext<'wren> {
     }
 
     #[inline]
-    pub fn get_slot<T>(&self, index: i32) -> Option<T::Output>
+    pub fn get_slot<T>(&self, index: i32) -> WrenResult<T::Output>
     where
         T: FromWren<'wren>,
     {
@@ -332,21 +360,21 @@ impl<'wren> WrenContext<'wren> {
     /// See:
     /// - [#717 When using wrenGetVariable, it now returns an int to inform you of failure](https://github.com/wren-lang/wren/pull/717)
     /// - [#601 wrenGetVariable does not seem to return a sane value](https://github.com/wren-lang/wren/issues/601)
-    pub fn get_var(&self, module: &str, name: &str) -> Option<WrenRef<'wren>> {
+    pub fn get_var(&self, module: &str, name: &str) -> WrenResult<WrenRef<'wren>> {
         trace!("get_var({}, {})", module, name);
         let c_module = CString::new(module).expect("Module name contains a null byte");
         let c_name = CString::new(name).expect("Name name contains a null byte");
 
         let module_exists = unsafe { bindings::wrenHasModule(self.vm_ptr(), c_module.as_ptr()) };
         if !module_exists {
-            return None;
+            return Err(WrenError::ModuleNotFound(module.to_string()));
         }
 
         let var_exists = unsafe { bindings::wrenHasVariable(self.vm_ptr(), c_module.as_ptr(), c_name.as_ptr()) };
         if !var_exists {
-            return None;
+            return Err(WrenError::VariableNotFound(name.to_string()));
         }
-        trace!("Module and variable exists {}.{}", module, name);
+        trace!("Module and variable exist {}.{}", module, name);
 
         self.ensure_slots(1);
 
@@ -419,10 +447,10 @@ impl<'wren> WrenContext<'wren> {
     ///
     /// Will return an error if the given variable doesn't exist, or the function signature has
     /// an invalid format.
-    pub fn make_call_ref(&self, module: &str, variable: &str, func_sig: &str) -> Option<WrenCallRef<'wren>> {
+    pub fn make_call_ref(&self, module: &str, variable: &str, func_sig: &str) -> WrenResult<WrenCallRef<'wren>> {
         let receiver = self.get_var(module, variable)?;
         let func = FnSymbolRef::compile(self, func_sig)?;
-        Some(WrenCallRef::new(receiver, func))
+        Ok(WrenCallRef::new(receiver, func))
     }
 
     /// Retrieve the channel sender for Wren handles that need to be released.
@@ -440,12 +468,49 @@ impl<'wren> WrenContext<'wren> {
     pub fn user_data(&self) -> Option<&UserData> {
         unsafe { WrenVm::get_user_data(self.vm_ptr()).map(|u| &*u) }
     }
+
+    /// Drains VM errors from the user data queue and returns them.
+    ///
+    /// The input is the result enum of ffi calls to either `wrenInterpret` or `wrenCall`.
+    ///
+    /// If the given result is success, and the error queue is empty,
+    /// the return is `Ok`. If the given result is an error type, the error
+    /// queue will be drained and a detailed [`WrenError`](../errors/enum.WrenError.html) is returned.
+    ///
+    /// This call is not idempotent. The error queue will be drained.
+    ///
+    /// # Errors
+    ///
+    /// Unusual errors are caused by a mismatch of the input value and
+    /// the internal user data state.
+    ///
+    /// If the input is success, but there are errors on the queue, a [`WrenError::ResultQueueMismatch`](../errors/enum.WrenError.html#ResultQueueMismatch)
+    /// is returned. If the input is runtime or compile error, but the
+    /// error queue is empty, then [`WrenError::ErrorAbsent`](../errors/enum.WrenError.html#ErrorAbsent)
+    /// is returned.
+    pub fn take_errors(&self, result_id: bindings::WrenInterpretResult) -> WrenResult<()> {
+        WrenVm::take_errors(self.vm_ptr(), result_id)
+    }
 }
 
+/// Native functionality that needs to cross the boundary into
+/// the VM and back out into native foreign methods.
+///
+/// User data is the primary mechanism for smuggling custom
+/// state into foreign functions, which only receive a raw
+/// pointer ot the VM.
 pub struct UserData {
+    /// Registry of foreign class bindings.
     pub foreign: ForeignBindings,
+    /// Queue of Wren handles that need to be released in the VM.
     pub handle_tx: Sender<*mut bindings::WrenHandle>,
-    pub error_tx: Sender<WrenVmError>,
+    // #[deprecated]
+    // pub error_tx: Sender<WrenVmError>,
+    /// Queue of errors recorded from VM execution.
+    /// Drained and consolidated to build [`WrenError`](../errors/struct.WrenError.html).
+    pub errors: RefCell<Vec<WrenVmError>>,
+    /// Callback to function that can handle `System.print()` calls
+    /// from Wren.
     pub write_fn: Box<dyn Fn(&str)>,
 }
 

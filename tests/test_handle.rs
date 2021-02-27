@@ -1,5 +1,5 @@
 use rust_wren::{
-    handle::{FnSymbolRef, WrenCallHandle, WrenCallRef, WrenHandle},
+    handle::{FnSymbolRef, WrenCallRef},
     prelude::*,
 };
 use std::{rc::Rc, thread};
@@ -66,7 +66,7 @@ fn test_wren_call() {
         let call_handle = WrenCallRef::new(test_class, print_fn);
 
         println!("Rust: Calling TestHandle.print()");
-        call_handle.call::<_, ()>(ctx, ());
+        call_handle.call::<_, ()>(ctx, ()).unwrap();
     });
 
     vm.context(|ctx| {
@@ -76,7 +76,7 @@ fn test_wren_call() {
         let call_handle = WrenCallRef::new(test_class, print_fn);
 
         println!("Rust: Calling TestHandle.withArgs(_,_,_)");
-        assert_eq!(call_handle.call::<_, f64>(ctx, (3.0, 7.0, 11.0)), Some(21.0));
+        assert_eq!(call_handle.call::<_, f64>(ctx, (3.0, 7.0, 11.0)).ok(), Some(21.0));
     });
 }
 
@@ -97,7 +97,7 @@ fn test_foreign_call() {
         let call_handle = WrenCallRef::new(move_me_obj, func);
 
         println!("Rust: Calling MoveMe.inner()");
-        call_handle.call::<_, ()>(ctx, ());
+        call_handle.call::<_, ()>(ctx, ()).unwrap();
     });
 }
 
@@ -168,8 +168,8 @@ fn test_non_existing() {
     vm.interpret("test_handle", "").unwrap();
 
     vm.context(|ctx| {
-        assert!(ctx.get_var("test_handle", "m").is_none());
-        assert!(ctx.get_var("unknown", "m").is_none());
+        assert!(ctx.get_var("test_handle", "m").is_err());
+        assert!(ctx.get_var("unknown", "m").is_err());
     });
 }
 
@@ -227,26 +227,29 @@ fn test_wren_ref_leak() {
     )
     .expect("Interpret failed");
 
-    let mut handle: Option<WrenHandle> = None;
-    vm.context(|ctx| {
+    let handle_result = vm.context_result(|ctx| {
         let a_ref = ctx.get_var("test_handle", "a").unwrap();
-        handle = a_ref.leak();
+        a_ref.leak()
     });
 
-    assert!(handle.is_some());
+    assert!(handle_result.is_ok());
 
-    vm.context(|ctx| {
-        let unwrap_fn = ctx.make_call_ref("test_handle", "Test", "unwrap(_)").unwrap();
-        let unwrapped_a = unwrap_fn.call::<_, String>(ctx, handle).unwrap(); // <-- handle drop
+    vm.context_result(|ctx| {
+        let unwrap_fn = ctx.make_call_ref("test_handle", "Test", "unwrap(_)")?;
+        let unwrapped_a = unwrap_fn.call::<_, String>(ctx, handle_result?)?; // <-- handle drop
 
         assert_eq!(unwrapped_a.as_str(), "Foo");
-    });
 
-    let mut rc: Option<Rc<WrenHandle>> = None;
-    vm.context(|ctx| {
-        let b_ref = ctx.get_var("test_handle", "b").unwrap();
-        rc = b_ref.leak().map(|r| Rc::new(r));
-    });
+        Ok(())
+    })
+    .unwrap();
+
+    let rc = vm
+        .context_result(|ctx| {
+            let b_ref = ctx.get_var("test_handle", "b").unwrap();
+            b_ref.leak().map(|r| Rc::new(r))
+        })
+        .unwrap();
 
     // This should be dropped by WrenVm::drop
     let _rc_cloned = rc.clone();
@@ -278,16 +281,15 @@ fn test_wren_call_ref_leak() {
     )
     .expect("Interpret failed");
 
-    let mut handle: Option<WrenCallHandle> = None;
-    vm.context(|ctx| {
+    let handle_result = vm.context_result(|ctx| {
         let call_ref = ctx.make_call_ref("test_handle", "Test", "calc(_)").unwrap();
-        handle = call_ref.leak();
+        call_ref.leak()
     });
 
-    assert!(handle.is_some());
+    assert!(handle_result.is_ok());
 
     vm.context(|ctx| {
-        let result = handle.unwrap().call::<_, f64>(ctx, 4.0).unwrap();
+        let result = handle_result.unwrap().call::<_, f64>(ctx, 4.0).unwrap();
         assert_eq!(result, 16.0);
     });
 }
@@ -304,15 +306,18 @@ fn test_handle_thread_send() {
     )
     .expect("Interpret failed");
 
-    vm.context(|ctx| {
-        let a = ctx.get_var("test_handle", "a").map(|r| r.leak());
+    vm.context_result(|ctx| {
+        let a = ctx.get_var("test_handle", "a")?.leak()?;
 
         let join = thread::spawn(move || {
-            assert!(a.is_some());
+            println!("{:?}", a);
         });
 
         join.join().unwrap();
-    });
+
+        Ok(())
+    })
+    .unwrap();
 }
 
 // We should be able to retrieve a variable via a property, and use that as the receiver of a call reference.
@@ -341,11 +346,11 @@ fn test_property_as_receiver() {
         let callme_sym = FnSymbolRef::compile(ctx, "callme()").unwrap();
         let callme = WrenCallRef::new(receiver, callme_sym);
 
-        assert_eq!(callme.call::<_, i32>(ctx, ()), Some(7));
-        assert_eq!(callme.call::<_, i32>(ctx, ()), Some(7));
+        assert_eq!(callme.call::<_, i32>(ctx, ()).ok(), Some(7));
+        assert_eq!(callme.call::<_, i32>(ctx, ()).ok(), Some(7));
 
         let callme = callme.leak().unwrap();
-        assert_eq!(callme.call::<_, i32>(ctx, ()), Some(7));
-        assert_eq!(callme.call::<_, i32>(ctx, ()), Some(7));
+        assert_eq!(callme.call::<_, i32>(ctx, ()).ok(), Some(7));
+        assert_eq!(callme.call::<_, i32>(ctx, ()).ok(), Some(7));
     });
 }

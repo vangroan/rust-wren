@@ -1,10 +1,12 @@
 use crate::{
     bindings,
+    types::WrenType,
     value::ToWren,
     vm::{WrenContext, WrenVm},
 };
 use smol_str::SmolStr;
 use std::{
+    error::Error,
     ffi::CString,
     fmt::{self, Display},
 };
@@ -16,9 +18,58 @@ pub enum WrenError {
     CompileError(Vec<WrenCompileError>),
     RuntimeError {
         message: String,
-        foreign: Option<Box<dyn ::std::error::Error>>,
+        foreign: Option<Box<dyn Error>>,
         stack: Vec<WrenStackFrame>,
     },
+    ModuleNotFound(String),
+    VariableNotFound(String),
+    ResultQueueMismatch,
+    ErrorAbsent(bindings::WrenInterpretResult),
+    UserDataNull,
+
+    /// Error when Wren provides a pointer which is unexpectedly null.
+    ///
+    /// This most likely indicates a bug in either Wren o r `rust-wren`.
+    NullPtr,
+    InvalidSlot,
+    SlotOutOfBounds(i32),
+    SlotType {
+        expected: WrenType,
+        actual: WrenType,
+    },
+    Utf8(::std::str::Utf8Error),
+    ForeignType,
+
+    /// Wrapped error caused by invalid call from Wren to Rust.
+    /// Used in generated code of wrapped functions.
+    ForeignCall {
+        function: SmolStr,
+        cause: Box<WrenError>,
+    },
+
+    /// Wrapped error when getting a function call argument from
+    /// a slot, sent from Wren, fails.
+    /// Used in generated code of wrapped functions.
+    GetArg {
+        slot: i32,
+        cause: Box<WrenError>,
+    },
+
+    /// When leaking a [`WrenRef`](handle/struct.WrenRef.html), ownership of the destructor channel sender must
+    /// be moved to the leaked handle.
+    ///
+    /// If the existing sender has already been moved, then it means the handle
+    /// is being leaked twice.
+    AlreadyLeaked,
+
+    /// Attempt to borrow `WrenCell`, but already borrowed.
+    BorrowMutError,
+
+    /// Attempt to borrow `WrenCell`, but already borrowed.
+    BorrowError,
+
+    /// Wrapper for errors that occur within a context closure.
+    Ctx(Box<dyn Error>),
 }
 
 impl ::std::error::Error for WrenError {}
@@ -47,7 +98,65 @@ impl ::std::fmt::Display for WrenError {
 
                 Ok(())
             }
+            WrenError::ModuleNotFound(mod_name) => write!(f, "Module '{}' not found", mod_name),
+            WrenError::VariableNotFound(var_name) => write!(f, "Variable '{}' not found", var_name),
+            WrenError::ResultQueueMismatch => write!(
+                f,
+                "Wren VM returned success, but errors were recorded on the error queue"
+            ),
+            WrenError::ErrorAbsent(result_id) => write!(
+                f,
+                "Wren VM failed with result {}, but no errors were recorded on the error queue",
+                result_id
+            ),
+            WrenError::UserDataNull => write!(f, "User data pointer in VM is null"),
+            WrenError::NullPtr => writeln!(f, "Unexpected null pointer"),
+            WrenError::SlotOutOfBounds(slot) => write!(f, "Slot {} is out of bounds", slot),
+            WrenError::SlotType { expected, actual } => {
+                write!(f, "Expected slot type '{:?}', actual '{:?}'", expected, actual)
+            }
+            WrenError::InvalidSlot => write!(f, "Invalid slot"),
+            WrenError::Utf8(utf8_err) => ::std::fmt::Display::fmt(utf8_err, f),
+            WrenError::ForeignType => write!(f, "Unexpected foreign type"),
+            WrenError::ForeignCall { function, cause } => {
+                write!(f, "Invalid call to foreign '{}': {}", function, cause)
+            }
+            WrenError::GetArg { slot, cause } => write!(f, "Getting argument from slot {} failed: {}", slot, cause),
+            WrenError::AlreadyLeaked => write!(f, "Already leaked handle"),
+            WrenError::BorrowMutError | WrenError::BorrowError => write!(
+                f,
+                "Foreign class already borrowed. Was it passed into multiple foreign call arguments?"
+            ),
+            WrenError::Ctx(err) => write!(f, "Error in Wren context closure: {}", err),
         }
+    }
+}
+
+impl WrenError {
+    /// Construct a `ForeignCall` variant.
+    ///
+    /// Intended to be used by generated code that wraps
+    /// Rust fucntions and exposes them to Wren.
+    #[inline]
+    #[doc(hidden)]
+    pub fn new_foreign_call<S>(function_name: S, cause: Box<WrenError>) -> Self
+    where
+        S: AsRef<str>,
+    {
+        WrenError::ForeignCall {
+            function: SmolStr::new(function_name),
+            cause,
+        }
+    }
+
+    #[inline]
+    pub fn is_runtime_error(&self) -> bool {
+        matches!(self, WrenError::RuntimeError { .. })
+    }
+
+    #[inline]
+    pub fn is_compile_error(&self) -> bool {
+        matches!(self, WrenError::CompileError(_))
     }
 }
 
@@ -165,23 +274,16 @@ impl ToWren for ForeignError {
         //
         // Wren doesn't trace the call to the foreign function.
         if let Some(userdata) = unsafe { WrenVm::get_user_data(ctx.vm_ptr()) } {
-            // TODO: Does the order of these two sends need to be reversed?
             if let ForeignError::Annotated { line, module, .. } = &self {
-                userdata
-                    .error_tx
-                    .send(WrenVmError::StackTrace {
-                        module: module.clone().into(),
-                        function: "".into(),
-                        line: *line,
-                        is_foreign: true,
-                    })
-                    .expect("Failed to send stack frame to error channel");
+                userdata.errors.borrow_mut().push(WrenVmError::StackTrace {
+                    module: module.clone().into(),
+                    function: "(foreign)".into(),
+                    line: *line,
+                    is_foreign: true,
+                });
             }
 
-            userdata
-                .error_tx
-                .send(WrenVmError::Foreign(self))
-                .expect("Failed to send foreign error to error channel");
+            userdata.errors.borrow_mut().push(WrenVmError::Foreign(self));
         }
     }
 }

@@ -1,4 +1,10 @@
-use crate::{bindings, class::WrenCell, types::WrenType, WrenContext};
+use crate::{
+    bindings,
+    class::WrenCell,
+    errors::{WrenError, WrenResult},
+    types::WrenType,
+    WrenContext,
+};
 use std::{
     ffi::{CStr, CString},
     os::raw::c_void,
@@ -8,13 +14,19 @@ use std::{
 macro_rules! verify_slot {
     ($ctx:ident, $n:ident, $t:path) => {
         if $n < 0 {
-            return None;
+            return Err($crate::errors::WrenError::SlotOutOfBounds($n as i32));
         }
         if $n >= $ctx.slot_count() as i32 {
-            return None;
+            return Err($crate::errors::WrenError::SlotOutOfBounds($n as i32));
         }
-        if $ctx.slot_type($n as usize) != Some($t) {
-            return None;
+        {
+            let slot_type = $ctx.slot_type($n as usize);
+            if slot_type != Some($t) {
+                return Err($crate::errors::WrenError::SlotType {
+                    actual: slot_type.unwrap(),
+                    expected: $t,
+                });
+            }
         }
     };
 }
@@ -22,15 +34,15 @@ macro_rules! verify_slot {
 pub trait FromWren<'wren> {
     type Output: Sized;
 
-    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output>;
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> WrenResult<Self::Output>;
 }
 
 impl<'wren> FromWren<'wren> for bool {
     type Output = Self;
 
-    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> WrenResult<Self::Output> {
         verify_slot!(ctx, slot_num, WrenType::Bool);
-        Some(unsafe { bindings::wrenGetSlotBool(ctx.vm_ptr(), slot_num) })
+        Ok(unsafe { bindings::wrenGetSlotBool(ctx.vm_ptr(), slot_num) })
     }
 }
 
@@ -40,9 +52,9 @@ macro_rules! impl_from_wren_num {
             type Output = Self;
 
             #[inline]
-            fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
+            fn get_slot(ctx: &WrenContext, slot_num: i32) -> WrenResult<Self::Output> {
                 verify_slot!(ctx, slot_num, WrenType::Number);
-                Some(unsafe { bindings::wrenGetSlotDouble(ctx.vm_ptr(), slot_num) } as Self)
+                Ok(unsafe { bindings::wrenGetSlotDouble(ctx.vm_ptr(), slot_num) } as Self)
             }
         }
     };
@@ -62,7 +74,7 @@ impl_from_wren_num!(f64);
 impl<'wren> FromWren<'wren> for String {
     type Output = Self;
 
-    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> WrenResult<Self::Output> {
         <&str as FromWren>::get_slot(ctx, slot_num).map(|s| s.to_owned())
     }
 }
@@ -71,22 +83,16 @@ impl<'wren> FromWren<'wren> for String {
 impl<'wren> FromWren<'wren> for &'wren str {
     type Output = Self;
 
-    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> WrenResult<Self::Output> {
         verify_slot!(ctx, slot_num, WrenType::String);
-        let c_str = unsafe {
+
+        unsafe {
             let char_ptr = bindings::wrenGetSlotString(ctx.vm_ptr(), slot_num);
             if char_ptr.is_null() {
-                return None;
-            }
-            CStr::from_ptr(char_ptr)
-        };
-
-        match c_str.to_str() {
-            Ok(s) => Some(s),
-            Err(err) => {
-                // TODO: return WrenResult instead of Option
-                log::warn!("Failed to convert Wren string to &str: {:?}", err);
-                None
+                Err(WrenError::NullPtr)
+            } else {
+                let c_str = CStr::from_ptr(char_ptr);
+                c_str.to_str().map_err(WrenError::Utf8)
             }
         }
     }
@@ -97,8 +103,8 @@ impl<'wren> FromWren<'wren> for () {
     type Output = Self;
 
     #[inline]
-    fn get_slot(_ctx: &WrenContext, _slot_num: i32) -> Option<Self::Output> {
-        Some(())
+    fn get_slot(_ctx: &WrenContext, _slot_num: i32) -> WrenResult<Self::Output> {
+        Ok(())
     }
 }
 
@@ -113,19 +119,17 @@ where
     type Output = Option<T::Output>;
 
     #[inline]
-    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
-        // FIXME: We're validating slots twice in the case where it's not null.
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> WrenResult<Self::Output> {
         if slot_num < 0 {
-            return None;
+            return Err(WrenError::SlotOutOfBounds(slot_num));
         }
         if slot_num >= ctx.slot_count() as i32 {
-            return None;
+            return Err(WrenError::SlotOutOfBounds(slot_num));
         }
 
-        if ctx.slot_type(slot_num as usize) == Some(WrenType::Null) {
-            Some(None)
-        } else {
-            Some(T::get_slot(ctx, slot_num))
+        match ctx.slot_type(slot_num as usize) {
+            Some(WrenType::Null) => Ok(None),
+            _ => T::get_slot(ctx, slot_num).map(Some),
         }
     }
 }
@@ -137,7 +141,7 @@ where
     type Output = &'wren WrenCell<T>;
 
     #[inline]
-    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> WrenResult<Self::Output> {
         verify_slot!(ctx, slot_num, WrenType::Foreign);
         let void_ptr: *const c_void = unsafe { bindings::wrenGetSlotForeign(ctx.vm_ptr(), slot_num) as _ };
         unsafe { WrenCell::<T>::from_ptr(void_ptr) }
@@ -153,7 +157,7 @@ where
     type Output = &'wren WrenCell<T>;
 
     #[inline]
-    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> WrenResult<Self::Output> {
         WrenCell::<T>::get_slot(ctx, slot_num)
     }
 }
@@ -167,7 +171,7 @@ where
     type Output = &'wren mut WrenCell<T>;
 
     #[inline]
-    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> WrenResult<Self::Output> {
         verify_slot!(ctx, slot_num, WrenType::Foreign);
         let void_ptr: *mut c_void = unsafe { bindings::wrenGetSlotForeign(ctx.vm_ptr(), slot_num) as _ };
         unsafe { WrenCell::<T>::from_ptr_mut(void_ptr) }

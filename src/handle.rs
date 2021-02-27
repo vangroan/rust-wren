@@ -34,10 +34,9 @@
 //! # let mut vm = WrenBuilder::new().build();
 //! # vm.interpret("my_module", r#"var myVariable = 1234"#).expect("Interpret failed");
 //! use rust_wren::handle::WrenHandle;
-//! let mut handle: Option<WrenHandle> = None;
-//! vm.context(|ctx| {
-//!     handle = ctx.get_var("my_module", "myVariable").unwrap().leak();
-//! });
+//! let mut handle = vm.context_result(|ctx| {
+//!     ctx.get_var("my_module", "myVariable")?.leak()
+//! }).unwrap();
 //! ```
 //!
 //! **Important:** If the owned handle outlives the VM, as in the VM is dropped before the handle is dropped and
@@ -48,10 +47,9 @@
 //! # let mut vm = WrenBuilder::new().build();
 //! # vm.interpret("my_module", r#"var myVariable = 1234"#).expect("Interpret failed");
 //! use rust_wren::handle::WrenHandle;
-//! let mut handle: Option<WrenHandle> = None;
-//! vm.context(|ctx| {
-//!     handle = ctx.get_var("my_module", "myVariable").unwrap().leak();
-//! });
+//! let mut handle = vm.context_result(|ctx| {
+//!     ctx.get_var("my_module", "myVariable")?.leak()
+//! }).unwrap();
 //! drop(vm); // <-- processes exit
 //! ```
 //!
@@ -180,13 +178,14 @@
 //!     let call_ref = ctx.make_call_ref("example", "Example", "multiply(_,_)").unwrap();
 //!     let var_a = ctx.get_var("example", "a").unwrap();
 //!
-//!     assert_eq!(call_ref.call::<_, f64>(ctx, (&var_a, 2.0)), Some(8.0));
-//!     assert_eq!(call_ref.call::<_, f64>(ctx, (&var_a, 3.0)), Some(12.0));
-//!     assert_eq!(call_ref.call::<_, f64>(ctx, (&var_a, 4.0)), Some(16.0));
+//!     assert_eq!(call_ref.call::<_, f64>(ctx, (&var_a, 2.0)).ok(), Some(8.0));
+//!     assert_eq!(call_ref.call::<_, f64>(ctx, (&var_a, 3.0)).ok(), Some(12.0));
+//!     assert_eq!(call_ref.call::<_, f64>(ctx, (&var_a, 4.0)).ok(), Some(16.0));
 //! });
 //! ```
 use crate::{
     bindings,
+    errors::{WrenError, WrenResult},
     value::{FromWren, ToWren},
     vm::WrenContext,
 };
@@ -219,10 +218,11 @@ impl<'wren> WrenRef<'wren> {
 
     /// Convert this borrowed `WrenRef` into an owned [`WrenHandle`](struct.WrenHandle.html).
     ///
-    /// # Safety
+    /// # Errors
     ///
-    ///
-    pub fn leak(mut self) -> Option<WrenHandle> {
+    /// Returns [`WrenError::AlreadyLeaked`](../errors/enum.WrenError.html#variant.AlreadyLeaked) if the internal state
+    /// of the handle indicates that it has already been leaked.
+    pub fn leak(mut self) -> WrenResult<WrenHandle> {
         let WrenRef {
             handle,
             ref mut destructors,
@@ -235,7 +235,7 @@ impl<'wren> WrenRef<'wren> {
         //
         // We shouldn't mem::forget the sender because internally it is
         // an Arc that needs its counter eventually decremented.
-        let destructors = destructors.take()?;
+        let destructors = destructors.take().ok_or_else(|| WrenError::AlreadyLeaked)?;
 
         // SAFETY: Ownership of the internal handle and channel sender moves to the new
         //         struct, where it will be responsibly dropped and released. However if we
@@ -243,7 +243,7 @@ impl<'wren> WrenRef<'wren> {
         //         Wren VM.
         mem::forget(self);
 
-        Some(WrenHandle { handle, destructors })
+        Ok(WrenHandle { handle, destructors })
     }
 }
 
@@ -265,10 +265,10 @@ impl<'wren> Drop for WrenRef<'wren> {
 impl<'wren> FromWren<'wren> for WrenRef<'wren> {
     type Output = Self;
 
-    fn get_slot(ctx: &WrenContext, slot_num: i32) -> Option<Self::Output> {
+    fn get_slot(ctx: &WrenContext, slot_num: i32) -> WrenResult<Self::Output> {
         let handle = unsafe { bindings::wrenGetSlotHandle(ctx.vm_ptr(), slot_num).as_mut().unwrap() };
         let destructors = ctx.destructor_sender();
-        Some(WrenRef::new(handle, destructors))
+        Ok(WrenRef::new(handle, destructors))
     }
 }
 
@@ -297,7 +297,7 @@ impl<'wren> FnSymbolRef<'wren> {
     /// Regex pattern for validating function signatures.
     const SIG_PATTERN: &'static str = r#"^[a-zA-Z0-9_]+(\(([_,]*[^,])?\))$"#;
 
-    pub fn compile<'a, S>(ctx: &WrenContext, signature: S) -> Option<Self>
+    pub fn compile<'a, S>(ctx: &WrenContext, signature: S) -> WrenResult<Self>
     where
         S: Into<Cow<'a, str>>,
     {
@@ -320,7 +320,7 @@ impl<'wren> FnSymbolRef<'wren> {
         };
         let destructors = ctx.destructor_sender();
 
-        Some(FnSymbolRef {
+        Ok(FnSymbolRef {
             handle: WrenRef::new(handle, destructors),
         })
     }
@@ -334,7 +334,7 @@ impl<'wren> FnSymbolRef<'wren> {
     ///
     /// You take responsibility for making sure this is dropped before
     /// the VM is dropped.
-    pub fn leak(self) -> Option<FnSymbol> {
+    pub fn leak(self) -> WrenResult<FnSymbol> {
         let FnSymbolRef { handle } = self;
 
         handle.leak().map(|handle| FnSymbol { handle })
@@ -384,7 +384,7 @@ impl<'wren> WrenCallRef<'wren> {
 
     /// Call Wren method.
     ///
-    /// The argument is any value that implements [ToWren](../value/trait.ToWren.html).
+    /// The argument is any value that implements [`ToWren`](../value/trait.ToWren.html).
     /// A tuple struct can be used to pass multiple arguments. Because the values will
     /// be sent to Wren, they will be moved, or implicitly copied.
     ///
@@ -417,36 +417,24 @@ impl<'wren> WrenCallRef<'wren> {
     ///     # assert_eq!(result, -2.0);
     /// });
     /// ```
-    pub fn call<'ctx, A, R>(&self, ctx: &'ctx mut WrenContext, args: A) -> Option<R::Output>
+    pub fn call<'ctx, A, R>(&self, ctx: &'ctx mut WrenContext, args: A) -> WrenResult<R::Output>
     where
         A: ToWren,
         R: FromWren<'wren>,
     {
-        // Receiver and arguments.
-        ctx.ensure_slots(1 + args.size_hint());
-        // FIXME: Move. We also don't want to copy WrenHandle
-        // self.receiver.put(ctx, 0);
-        log::trace!("Set slot receiver {:?}", self.receiver.handle);
-        unsafe {
-            bindings::wrenSetSlotHandle(ctx.vm_ptr(), 0, self.receiver.handle);
-        }
+        let receiver = unsafe { self.receiver.handle.as_mut().ok_or_else(|| WrenError::NullPtr)? };
+        let func = unsafe { self.func.handle.handle.as_mut().ok_or_else(|| WrenError::NullPtr)? };
 
-        args.put(ctx, 1);
-
-        log::trace!("wrenCall {:?}", self.func.handle.handle);
-        let _result = unsafe { bindings::wrenCall(ctx.vm_ptr(), self.func.handle.handle) };
-
-        // TODO: Check result
-        R::get_slot(ctx, 0)
+        wren_call::<A, R>(ctx, receiver, func, args)
     }
 
-    pub fn leak(self) -> Option<WrenCallHandle> {
+    pub fn leak(self) -> WrenResult<WrenCallHandle> {
         let WrenCallRef { receiver, func } = self;
 
-        if let (Some(receiver), Some(func)) = (receiver.leak(), func.leak()) {
-            Some(WrenCallHandle { receiver, func })
+        if let (Ok(receiver), Ok(func)) = (receiver.leak(), func.leak()) {
+            Ok(WrenCallHandle { receiver, func })
         } else {
-            None
+            Err(WrenError::AlreadyLeaked)
         }
     }
 }
@@ -535,29 +523,45 @@ pub struct WrenCallHandle {
 }
 
 impl WrenCallHandle {
-    pub fn call<'wren, 'ctx, A, R>(&self, ctx: &'ctx mut WrenContext, args: A) -> Option<R::Output>
+    pub fn call<'wren, 'ctx, A, R>(&self, ctx: &'ctx mut WrenContext, args: A) -> WrenResult<R::Output>
     where
         A: ToWren,
         R: FromWren<'wren>,
     {
-        // Receiver and arguments.
-        ctx.ensure_slots(1 + args.size_hint());
+        let receiver = unsafe { self.receiver.handle.as_mut().ok_or_else(|| WrenError::NullPtr)? };
+        let func = unsafe { self.func.handle.handle.as_mut().ok_or_else(|| WrenError::NullPtr)? };
 
-        unsafe {
-            bindings::wrenSetSlotHandle(ctx.vm_ptr(), 0, self.receiver.handle);
-        }
-
-        args.put(ctx, 1);
-
-        log::trace!("wrenCall {:?}", self.func.handle.handle);
-        let result = unsafe { bindings::wrenCall(ctx.vm_ptr(), self.func.handle.handle) };
-
-        // TODO: Properly check result and return error.
-        if result != bindings::WrenInterpretResult_WREN_RESULT_SUCCESS {
-            eprintln!("Call failed: {}", result);
-            return None;
-        }
-
-        R::get_slot(ctx, 0)
+        wren_call::<A, R>(ctx, receiver, func, args)
     }
+}
+
+/// Perform Wren function call.
+fn wren_call<'wren, 'ctx, A, R>(
+    ctx: &'ctx mut WrenContext,
+    receiver: &mut bindings::WrenHandle,
+    func: &mut bindings::WrenHandle,
+    args: A,
+) -> WrenResult<R::Output>
+where
+    A: ToWren,
+    R: FromWren<'wren>,
+{
+    // Receiver and arguments.
+    ctx.ensure_slots(1 + args.size_hint());
+
+    // FIXME: WrenHandle is moved via ToWren.
+    //        It shouldn't be clone because that would require us to
+    //        wrap it `Rc<T>` and introduce even more indirection.
+    //        Create `WrenHandle::clone(ctx)`.
+    unsafe {
+        bindings::wrenSetSlotHandle(ctx.vm_ptr(), 0, receiver);
+    }
+
+    args.put(ctx, 1);
+
+    let result_id: bindings::WrenInterpretResult = unsafe { bindings::wrenCall(ctx.vm_ptr(), func) };
+    ctx.take_errors(result_id)?;
+
+    // Wren places the result in slot 0 if result was success.
+    R::get_slot(ctx, 0)
 }

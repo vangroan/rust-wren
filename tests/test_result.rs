@@ -115,6 +115,7 @@ fn test_compile_error() {
 
             eprintln!("{}", msg);
         }
-        _ => {}
+        Ok(_) => {}
+        Err(err) => eprintln!("{}", err),
     }
 }

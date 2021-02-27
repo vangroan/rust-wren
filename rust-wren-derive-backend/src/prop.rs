@@ -1,7 +1,7 @@
 //! Class property generation.
 use proc_macro2::{Ident, TokenStream};
-use quote::{format_ident, quote};
-use syn::{Fields, ItemStruct, Type};
+use quote::{format_ident, quote, quote_spanned};
+use syn::{spanned::Spanned, Fields, ItemStruct, Type};
 
 pub fn gen_class_props(class: &ItemStruct) -> syn::Result<TokenStream> {
     let get_set = format_ident!("getset");
@@ -11,6 +11,7 @@ pub fn gen_class_props(class: &ItemStruct) -> syn::Result<TokenStream> {
     let mut registers = vec![];
     let mut gets = vec![];
     let mut sets = vec![];
+    let mut assert_clone = vec![];
 
     for (idx, field) in class.fields.iter().enumerate() {
         for attr in &field.attrs {
@@ -22,6 +23,15 @@ pub fn gen_class_props(class: &ItemStruct) -> syn::Result<TokenStream> {
             };
 
             let field_ty = field.ty.clone();
+
+            // Compile time assertion to provide user friendly error
+            // when property does not implement `Clone`.
+            let field_span = field_ty.span();
+            let assert_ident = format_ident!("_{}_AssertSync", field_ident);
+            assert_clone.push(quote_spanned! {field_span=>
+                #[allow(non_camel_case_types)]
+                struct #assert_ident where #field_ty: Clone;
+            });
 
             match attr.path.get_ident() {
                 ident if ident == Some(&get) => {
@@ -51,6 +61,8 @@ pub fn gen_class_props(class: &ItemStruct) -> syn::Result<TokenStream> {
     let ty = class.ident.clone();
 
     let gen = quote! {
+        #(#assert_clone)*
+
         #[doc(hidden)]
         impl #ty {
             #(#gets)*
@@ -65,24 +77,50 @@ pub fn gen_class_props(class: &ItemStruct) -> syn::Result<TokenStream> {
     Ok(gen)
 }
 
+/// Generate property get function.
 fn gen_get(field_ident: &Ident) -> (TokenStream, TokenStream) {
     // Signature of a property get is simply the property name; no parentheses or argument arity.
     let sig = field_ident.to_string();
     let wrap_func = format_ident!("__wren_wrap_get_{}", field_ident);
+    let span = field_ident.span();
 
-    let get = quote! {
-        unsafe extern "C" fn #wrap_func(vm: *mut rust_wren::bindings::WrenVM) {
+    let get = quote_spanned! {span=>
+        extern "C" fn #wrap_func(vm: *mut rust_wren::bindings::WrenVM) {
             // Context for extracting slots.
             let vm: &mut rust_wren::bindings::WrenVM = unsafe { vm.as_mut().unwrap() };
             let mut ctx = rust_wren::WrenContext::new(vm);
 
             // Retrieve receiver, which contains the property value.
-            let cell = ctx.get_slot::<Self>(0)
-                .unwrap_or_else(|| panic!("Getting receiver from slot 0 for property '{}' failed", #sig));
+            let cell = match ctx.get_slot::<Self>(0) {
+                Ok(cell) => cell,
+                Err(err) => {
+                    let wren_error = rust_wren::WrenError::new_foreign_call(
+                        #sig,
+                        Box::new(rust_wren::WrenError::GetArg { slot: 0, cause: err.into(), })
+                    );
 
-            // TODO: Borrow failure must be an runtime error in Wren and not a panic.
+                    let foreign_error = rust_wren::ForeignError::Simple(Box::new(wren_error));
+                    foreign_error.put(&mut ctx, 0);
+
+                    return;
+                }
+            };
+
             // Value must be cloned to be sent from Rust to Wren.
-            let prop = cell.borrow().#field_ident.clone();
+            let prop = match cell.try_borrow_mut() {
+                Ok(ref mut self_) => self_.#field_ident.clone(),
+                Err(err) => {
+                    let wren_error = rust_wren::WrenError::new_foreign_call(
+                        #sig,
+                        Box::new(rust_wren::WrenError::GetArg { slot: 0, cause: err.into(), })
+                    );
+
+                    let foreign_error = rust_wren::ForeignError::Simple(Box::new(wren_error));
+                    foreign_error.put(&mut ctx, 0);
+
+                    return;
+                }
+            };
 
             // Property return value goes into the first slot.
             rust_wren::value::ToWren::put(prop, &mut ctx, 0);
@@ -104,29 +142,72 @@ fn gen_get(field_ident: &Ident) -> (TokenStream, TokenStream) {
     (get, register)
 }
 
+/// Generate property set function.
 fn gen_set(field_ident: &Ident, field_ty: &Type) -> (TokenStream, TokenStream) {
     // Signature of a property assign is the property name followed by an equal sign.
     let sig = format!("{}=(_)", field_ident);
     let wrap_func = format_ident!("__wren_wrap_set_{}", field_ident);
+    let span = field_ident.span();
 
-    let set = quote! {
-        unsafe extern "C" fn #wrap_func(vm: *mut rust_wren::bindings::WrenVM) {
+    let set = quote_spanned! {span=>
+        extern "C" fn #wrap_func(vm: *mut rust_wren::bindings::WrenVM) {
             // Context for extracting slots.
             let vm: &mut rust_wren::bindings::WrenVM = unsafe { vm.as_mut().unwrap() };
             let mut ctx = rust_wren::WrenContext::new(vm);
 
             // Retrieve receiver, which is where we'll be storing the new property value.
-            let cell = ctx.get_slot::<Self>(0)
-                .unwrap_or_else(|| panic!("Getting receiver from slot 0 for property '{}' failed", #sig));
+            // let cell = ctx.get_slot::<Self>(0)
+            //     .unwrap_or_else(|err| panic!("Getting receiver from slot 0 for property '{}' failed: {}", #sig, err));
+            let cell = match ctx.get_slot::<Self>(0) {
+                Ok(cell) => cell,
+                Err(err) => {
+                    // TODO: Wrap this up in a macro.
+                    let wren_error = rust_wren::WrenError::new_foreign_call(
+                        #sig,
+                        Box::new(rust_wren::WrenError::GetArg { slot: 0, cause: err.into(), })
+                    );
+
+                    let foreign_error = rust_wren::ForeignError::Simple(Box::new(wren_error));
+                    foreign_error.put(&mut ctx, 0);
+
+                    return;
+                }
+            };
 
             // Setters always have only one argument.
-            let value = ctx.get_slot::<#field_ty>(1)
-                .unwrap_or_else(|| panic!("Getting value from slot 1 for property '{}' failed", #sig));
+            // ctx.get_slot::<#field_ty>(1).unwrap_or_else(|err| panic!("Getting value from slot 1 for property '{}' failed: {}", #sig, err));
+            let value = match ctx.get_slot::<#field_ty>(1) {
+                Ok(value) => value,
+                Err(err) => {
+                    let wren_error = rust_wren::WrenError::new_foreign_call(
+                        #sig,
+                        Box::new(rust_wren::WrenError::GetArg { slot: 0, cause: err.into(), })
+                    );
 
-            // TODO: Borrow failure must be an runtime error in Wren and not a panic.
+                    let foreign_error = rust_wren::ForeignError::Simple(Box::new(wren_error));
+                    foreign_error.put(&mut ctx, 0);
+
+                    return;
+                }
+            };
+
             // Property value must be cloneable because it is assigned to the Rust struct
             // and also returned later.
-            cell.borrow_mut().#field_ident = value.clone();
+            // cell.borrow_mut().#field_ident = value.clone();
+            match cell.try_borrow_mut() {
+                Ok(ref mut self_) => self_.#field_ident = value.clone(),
+                Err(err) => {
+                    let wren_error = rust_wren::WrenError::new_foreign_call(
+                        #sig,
+                        Box::new(rust_wren::WrenError::GetArg { slot: 0, cause: err.into(), })
+                    );
+
+                    let foreign_error = rust_wren::ForeignError::Simple(Box::new(wren_error));
+                    foreign_error.put(&mut ctx, 0);
+
+                    return;
+                }
+            }
 
             // To keep with the convention of assignment returning the
             // assigned value, we copy the value to the return slot.

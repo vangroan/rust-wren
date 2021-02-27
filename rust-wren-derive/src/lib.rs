@@ -11,28 +11,6 @@ use syn::{
     Expr, Ident, ItemImpl, ItemStruct, Token,
 };
 
-#[proc_macro_derive(HelloMacro)]
-pub fn hello_macro_derive(input: TokenStream) -> TokenStream {
-    // Construct a representation of Rust code as a syntax tree
-    // that we can manipulate
-    let ast = syn::parse(input).unwrap();
-
-    // Build the trait implementation
-    impl_hello_macro(&ast)
-}
-
-fn impl_hello_macro(ast: &syn::DeriveInput) -> TokenStream {
-    let name = &ast.ident;
-    let gen = quote! {
-        impl HelloMacro for #name {
-            fn hello_macro() {
-                println!("Hello, Macro! My name is {}!", stringify!(#name));
-            }
-        }
-    };
-    gen.into()
-}
-
 #[proc_macro_attribute]
 pub fn wren_class(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attr = parse_macro_input!(attr as WrenClassArgs);
@@ -49,6 +27,7 @@ fn impl_wren_class(attr: WrenClassArgs, mut item: ItemStruct) -> TokenStream {
             Expr::Path(path_expr) if path_expr.path.segments.len() == 1 => {
                 path_expr.path.segments.first().unwrap().ident.to_string()
             }
+            // TODO: Better error span
             _ => panic!("Wren class attr unexpected name expression type"),
         }
     } else {
