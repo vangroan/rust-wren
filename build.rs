@@ -1,11 +1,15 @@
 extern crate bindgen;
+extern crate cc;
 
+use glob::glob;
 use std::{env, path::PathBuf, process::Command};
 use std::{
     fs,
     io::{self, Write},
 };
 
+#[allow(dead_code)]
+#[deprecated]
 fn build_win64() {
     println!("Building Wren");
 
@@ -59,6 +63,22 @@ fn build_win64() {
     fs::copy(in_path.join(filename), out_path.join(filename)).expect("Wren lib copy failed");
 }
 
+fn build_cc() {
+    let output = if env::var("PROFILE").expect("PROFILE not set") == "debug" {
+        "wren_d"
+    } else {
+        "wren"
+    };
+
+    cc::Build::new()
+        .include("wren/src/include")
+        .include("wren/src/optional")
+        .include("wren/src/vm")
+        .files(glob("wren/src/vm/*.c").expect("failed to read glob pattern").filter_map(Result::ok))
+        .files(glob("wren/src/optional/*.c").expect("failed to read glob pattern").filter_map(Result::ok))
+        .compile(output);
+}
+
 fn generate_bindings() {
     let profile = env::var("PROFILE").expect("PROFILE not set");
 
@@ -104,6 +124,6 @@ fn generate_bindings() {
 }
 
 fn main() {
-    build_win64();
+    build_cc();
     generate_bindings();
 }
