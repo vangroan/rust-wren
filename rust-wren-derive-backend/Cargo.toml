@@ -1,7 +1,8 @@
 [package]
-name = "rust_wren_derive_backend"
+name = "rust-wren-derive-backend"
 version = "0.6.1"
 authors = ["Willem Victor <wimpievictor@gmail.com>"]
+license = "MIT OR Apache-2.0"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html

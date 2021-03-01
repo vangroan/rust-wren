@@ -1,7 +1,8 @@
 [package]
-name = "rust_wren_derive"
+name = "rust-wren-derive"
 version = "0.6.1"
 authors = ["Willem Victor <wimpievictor@gmail.com>"]
+license = "MIT OR Apache-2.0"
 edition = "2018"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
@@ -12,4 +13,4 @@ proc-macro = true
 [dependencies]
 syn = { version = "1.0", features = ["full"] }
 quote = "1.0"
-rust_wren_derive_backend = { version = "*", path = "../rust-wren-derive-backend" }
+rust-wren-derive-backend = { version = "*", path = "../rust-wren-derive-backend" }
