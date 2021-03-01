@@ -74,3 +74,8 @@ impl WrenSequenceProtocol for WrenVector2 {
 - [ ] Store foreign method bindings in `inventory`.
 - [ ] Wren operator methods.
 - [ ] Non-static userdata borrowed within scope.
+
+# License
+
+Licensed under either of [Apache License, Version 2.0](LICENSE-APACHE) or [MIT license](LICENSE-MIT) at your option.
+Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in this crate by you, as defined in the Apache-2.0 license, shall be dual licensed as above, without any additional terms or conditions.
