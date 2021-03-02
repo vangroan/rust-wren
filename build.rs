@@ -74,8 +74,16 @@ fn build_cc() {
         .include("wren/src/include")
         .include("wren/src/optional")
         .include("wren/src/vm")
-        .files(glob("wren/src/vm/*.c").expect("failed to read glob pattern").filter_map(Result::ok))
-        .files(glob("wren/src/optional/*.c").expect("failed to read glob pattern").filter_map(Result::ok))
+        .files(
+            glob("wren/src/vm/*.c")
+                .expect("failed to read glob pattern")
+                .filter_map(Result::ok),
+        )
+        .files(
+            glob("wren/src/optional/*.c")
+                .expect("failed to read glob pattern")
+                .filter_map(Result::ok),
+        )
         .compile(output);
 }
 

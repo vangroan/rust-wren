@@ -89,7 +89,7 @@ impl WrenVm {
     /// error.
     #[doc(hidden)]
     pub fn take_errors(vm: *mut bindings::WrenVM, result_id: bindings::WrenInterpretResult) -> WrenResult<()> {
-        let userdata = unsafe { WrenVm::get_user_data(vm).ok_or_else(|| WrenError::UserDataNull)? };
+        let userdata = unsafe { WrenVm::get_user_data(vm).ok_or(WrenError::UserDataNull)? };
         let mut errors = userdata.errors.borrow_mut();
 
         match result_id {

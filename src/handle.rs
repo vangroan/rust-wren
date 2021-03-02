@@ -235,7 +235,7 @@ impl<'wren> WrenRef<'wren> {
         //
         // We shouldn't mem::forget the sender because internally it is
         // an Arc that needs its counter eventually decremented.
-        let destructors = destructors.take().ok_or_else(|| WrenError::AlreadyLeaked)?;
+        let destructors = destructors.take().ok_or(WrenError::AlreadyLeaked)?;
 
         // SAFETY: Ownership of the internal handle and channel sender moves to the new
         //         struct, where it will be responsibly dropped and released. However if we
@@ -422,8 +422,8 @@ impl<'wren> WrenCallRef<'wren> {
         A: ToWren,
         R: FromWren<'wren>,
     {
-        let receiver = unsafe { self.receiver.handle.as_mut().ok_or_else(|| WrenError::NullPtr)? };
-        let func = unsafe { self.func.handle.handle.as_mut().ok_or_else(|| WrenError::NullPtr)? };
+        let receiver = unsafe { self.receiver.handle.as_mut().ok_or(WrenError::NullPtr)? };
+        let func = unsafe { self.func.handle.handle.as_mut().ok_or(WrenError::NullPtr)? };
 
         wren_call::<A, R>(ctx, receiver, func, args)
     }
@@ -528,8 +528,8 @@ impl WrenCallHandle {
         A: ToWren,
         R: FromWren<'wren>,
     {
-        let receiver = unsafe { self.receiver.handle.as_mut().ok_or_else(|| WrenError::NullPtr)? };
-        let func = unsafe { self.func.handle.handle.as_mut().ok_or_else(|| WrenError::NullPtr)? };
+        let receiver = unsafe { self.receiver.handle.as_mut().ok_or(WrenError::NullPtr)? };
+        let func = unsafe { self.func.handle.handle.as_mut().ok_or(WrenError::NullPtr)? };
 
         wren_call::<A, R>(ctx, receiver, func, args)
     }

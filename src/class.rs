@@ -184,7 +184,7 @@ where
         if !Self::is_type(maybe_cell) {
             Err(WrenError::ForeignType)
         } else {
-            (maybe_cell as *const Self).as_ref().ok_or_else(|| WrenError::NullPtr)
+            (maybe_cell as *const Self).as_ref().ok_or(WrenError::NullPtr)
         }
     }
 
@@ -202,7 +202,7 @@ where
         if !Self::is_type(maybe_cell) {
             Err(WrenError::ForeignType)
         } else {
-            (maybe_cell as *mut Self).as_mut().ok_or_else(|| WrenError::NullPtr)
+            (maybe_cell as *mut Self).as_mut().ok_or(WrenError::NullPtr)
         }
     }
 
