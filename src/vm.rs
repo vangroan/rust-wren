@@ -5,6 +5,7 @@ use crate::{
     errors::{WrenCompileError, WrenError, WrenResult, WrenStackFrame, WrenVmError},
     foreign::{ForeignBindings, ForeignClass, ForeignClassKey, ForeignMethod, ForeignMethodKey},
     handle::{FnSymbolRef, WrenCallRef, WrenRef},
+    module::{ModuleLoader, ModuleResolver},
     runtime, types,
     value::FromWren,
 };
@@ -201,6 +202,8 @@ impl<'wren> Drop for ContextGuard<'wren> {
 pub struct WrenBuilder {
     foreign: ForeignBindings,
     write_fn: Option<Box<dyn Fn(&str)>>,
+    resolver: Option<Box<dyn ModuleResolver>>,
+    loader: Option<Box<dyn ModuleLoader>>,
 }
 
 impl WrenBuilder {
@@ -238,6 +241,22 @@ impl WrenBuilder {
         self
     }
 
+    pub fn with_module_resolver<T>(mut self, resolver: T) -> Self
+    where
+        T: 'static + ModuleResolver,
+    {
+        self.resolver = Some(Box::new(resolver));
+        self
+    }
+
+    pub fn with_module_loader<T>(mut self, loader: T) -> Self
+    where
+        T: 'static + ModuleLoader,
+    {
+        self.loader = Some(Box::new(loader));
+        self
+    }
+
     /// By default print to stdout.
     fn default_write_fn() -> Box<dyn Fn(&str) + 'static> {
         Box::new(|s| print!("{}", s))
@@ -253,14 +272,32 @@ impl WrenBuilder {
             uninit_config.assume_init()
         };
 
+        let WrenBuilder {
+            foreign,
+            write_fn,
+            resolver,
+            loader,
+        } = self;
+
+        config.resolveModuleFn = if resolver.is_some() {
+            Some(runtime::resolve_module)
+        } else {
+            None
+        };
+        config.loadModuleFn = if loader.is_some() {
+            Some(runtime::load_module)
+        } else {
+            None
+        };
         config.reallocateFn = Some(runtime::wren_reallocate);
         config.writeFn = Some(runtime::write_function);
         config.errorFn = Some(runtime::error_function);
 
-        let WrenBuilder { foreign, write_fn } = self;
         let user_data = UserData {
             foreign,
             handle_tx,
+            resolver,
+            loader,
             errors: RefCell::new(Vec::new()),
             write_fn: write_fn.unwrap_or_else(WrenBuilder::default_write_fn),
         };
@@ -504,8 +541,10 @@ pub struct UserData {
     pub foreign: ForeignBindings,
     /// Queue of Wren handles that need to be released in the VM.
     pub handle_tx: Sender<*mut bindings::WrenHandle>,
-    // #[deprecated]
-    // pub error_tx: Sender<WrenVmError>,
+    /// Resolver for determining a module's canonical name.
+    pub resolver: Option<Box<dyn ModuleResolver>>,
+    /// Loader for providing module source code on import.
+    pub loader: Option<Box<dyn ModuleLoader>>,
     /// Queue of errors recorded from VM execution.
     /// Drained and consolidated to build [`WrenError`](../errors/struct.WrenError.html).
     pub errors: RefCell<Vec<WrenVmError>>,

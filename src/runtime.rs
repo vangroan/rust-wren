@@ -1,9 +1,14 @@
 /// Callback functions passed to WrenVM.
-use crate::{bindings, errors::WrenVmError, vm::WrenVm, ForeignError};
+use crate::{
+    bindings,
+    errors::WrenVmError,
+    vm::WrenVm,
+    ForeignError,
+};
 use smol_str::SmolStr;
 use std::{
     alloc::{alloc_zeroed, dealloc, realloc, Layout},
-    ffi::CStr,
+    ffi::{CStr, CString},
     os::raw::{c_char, c_int, c_void},
     ptr,
 };
@@ -93,4 +98,77 @@ pub extern "C" fn error_function(
             }
         }
     }
+}
+
+/// Module resolver
+#[no_mangle]
+pub extern "C" fn resolve_module(
+    vm: *mut bindings::WrenVM,
+    importer: *const c_char,
+    name: *const c_char,
+) -> *const c_char {
+    log::trace!("Runtime: resolving module name");
+
+    if let Some(userdata) = unsafe { WrenVm::get_user_data(vm) } {
+        let importer = unsafe { CStr::from_ptr(importer) };
+        let name = unsafe { CStr::from_ptr(name) };
+
+        if let Some(resolved) = userdata
+            .resolver
+            .as_mut()
+            .and_then(|resolver| resolver.resolve(importer.to_string_lossy().as_ref(), name.to_string_lossy().as_ref()))
+        {
+            match CString::new(resolved) {
+                Ok(c_resolved) => {
+                    // Wren takes ownership of the resolved name and deallocates it.
+                    c_resolved.into_raw()
+                }
+                Err(err) => {
+                    log::error!("Resolved module name contains a null byte: {}", err);
+                    ptr::null()
+                }
+            }
+        } else {
+            ptr::null()
+        }
+    } else {
+        ptr::null()
+    }
+}
+
+/// Module loader
+#[no_mangle]
+pub extern "C" fn load_module(vm: *mut bindings::WrenVM, name: *const c_char) -> bindings::WrenLoadModuleResult {
+    if let Some(userdata) = unsafe { WrenVm::get_user_data(vm) } {
+        if let Some(source) = userdata.loader.as_mut().and_then(|loader| {
+            let name = unsafe { CStr::from_ptr(name) };
+            loader.load(name.to_string_lossy().as_ref())
+        }) {
+            // Wren takes ownership of the source code string, and deallocates
+            // it with `runtime::wren_reallocate`.
+            let c_source = CString::new(source).unwrap();
+            return bindings::WrenLoadModuleResult {
+                source: c_source.into_raw(),
+                onComplete: Some(load_module_complete),
+                userData: ptr::null_mut(),
+            };
+        }
+    }
+
+    bindings::WrenLoadModuleResult {
+        // Null means not found
+        source: ptr::null_mut(),
+        onComplete: None,
+        userData: ptr::null_mut(),
+    }
+}
+
+/// Callback when module load is done
+#[no_mangle]
+pub extern "C" fn load_module_complete(
+    _vm: *mut bindings::WrenVM,
+    _name: *const c_char,
+    _result: bindings::WrenLoadModuleResult,
+) {
+    // TODO: Call module loader on_complete
 }
