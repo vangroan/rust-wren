@@ -1,4 +1,5 @@
 use rust_wren::prelude::*;
+use std::{ffi, mem};
 
 #[wren_class]
 #[derive(Debug)]
@@ -52,4 +53,16 @@ fn test_memory_safety() {
     .expect("Interpret error");
 
     drop(vm);
+}
+
+/// There are cases where a `CString` is created in Rust, but
+/// ownership of the raw pointer is passed to Wren. The string
+/// is then deallocated via the `WrenReallocateFn` passed to
+/// the VM config.
+///
+/// This test is to check that `CString` aligns to the hardcoded
+/// value in `rust_wren::runtime::wren_reallocate`;
+#[test]
+fn test_cstring_align() {
+    assert_eq!(mem::align_of::<ffi::CString>(), 8);
 }

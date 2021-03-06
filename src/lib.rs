@@ -33,6 +33,7 @@ pub mod class;
 mod errors;
 pub mod foreign;
 pub mod handle;
+pub mod module;
 mod runtime;
 mod types;
 pub mod value;
@@ -44,6 +45,7 @@ pub use vm::*;
 pub mod prelude {
     pub use crate::class::{WrenCell, WrenForeignClass};
     pub use crate::handle::WrenRef;
+    pub use crate::module::{ModuleLoader, ModuleResolver};
     pub use crate::value::{FromWren, ToWren};
     pub use crate::vm::{WrenBuilder, WrenVm};
     pub use rust_wren_derive::{foreign_error, wren_class, wren_methods};

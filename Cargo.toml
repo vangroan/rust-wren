@@ -1,6 +1,6 @@
 [package]
 name = "rust-wren"
-version = "0.12.2"
+version = "0.13.0"
 authors = ["Willem Victor <wimpievictor@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2018"
