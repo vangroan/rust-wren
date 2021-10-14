@@ -1,10 +1,5 @@
 /// Callback functions passed to WrenVM.
-use crate::{
-    bindings,
-    errors::WrenVmError,
-    vm::WrenVm,
-    ForeignError,
-};
+use crate::{bindings, errors::WrenVmError, vm::WrenVm, ForeignError};
 use smol_str::SmolStr;
 use std::{
     alloc::{alloc_zeroed, dealloc, realloc, Layout},
