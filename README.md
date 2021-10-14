@@ -74,6 +74,7 @@ impl WrenSequenceProtocol for WrenVector2 {
 - [ ] Store foreign method bindings in `inventory`.
 - [ ] Wren operator methods.
 - [ ] Non-static userdata borrowed within scope.
+- [ ] Replaced raw pointers with NonNull
 
 # License
 

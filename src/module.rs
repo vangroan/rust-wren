@@ -12,7 +12,9 @@ pub trait ModuleResolver {
 
 pub trait ModuleLoader {
     fn load(&mut self, name: &str) -> Option<String>;
-    fn on_complete(&mut self) { unimplemented!("on_complete is not supported yet") }
+    fn on_complete(&mut self) {
+        unimplemented!("on_complete is not supported yet")
+    }
 }
 
 /// Basic module resolver that just returns the

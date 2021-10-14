@@ -1,4 +1,7 @@
-use rust_wren::{prelude::*, module::{UnitModuleResolver, FileModuleLoader}};
+use rust_wren::{
+    module::{FileModuleLoader, UnitModuleResolver},
+    prelude::*,
+};
 
 #[test]
 fn test_module_resolve() {

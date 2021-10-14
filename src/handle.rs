@@ -196,6 +196,7 @@ use std::{
     fmt,
     marker::PhantomData,
     mem,
+    ptr::NonNull,
     rc::Rc,
     sync::{mpsc::Sender, Arc},
 };
@@ -455,6 +456,25 @@ pub struct WrenHandle {
 ///
 /// Sending the pointer across thread boundaries should be safe, and is needed to implement concurrency scheduling.
 unsafe impl Send for WrenHandle {}
+
+impl WrenHandle {
+    /// Create a new `WrenHandle` from a raw pointer.
+    ///
+    /// TODO: Change usage to NonNull to ensure internal integrity of `WrenHandle`
+    pub(crate) unsafe fn from_raw(
+        handle: *mut bindings::WrenHandle,
+        destructors: Sender<*mut bindings::WrenHandle>,
+    ) -> Self {
+        WrenHandle { handle, destructors }
+    }
+
+    /// Retrieve the raw underlying pointer.
+    #[inline(always)]
+    pub(crate) unsafe fn raw_ptr(&self) -> NonNull<bindings::WrenHandle> {
+        // FIXME: WrenHandle internally must be NonNull to begin with
+        NonNull::new_unchecked(self.handle)
+    }
+}
 
 impl fmt::Debug for WrenHandle {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
