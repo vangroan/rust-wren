@@ -1,7 +1,15 @@
 
+# 🦀 Rust ↔ Wren 🐦
+
+Wrapper library to embed the [Wren](https://wren.io) scripting language inside a Rust application.
+
+⚠ Warning: This library is under heavy development. Many features are missing or broken. Every minor version bump will break the API.
+
 ## Build
 
 ### Windows
+
+Building on Windows requires Visual Studio 2019 to build the Wren C library.
 
 ```
 msbuild projects\vs2019\wren.vcxproj /property:Configuration="Debug 64bit" /property:Platform=x64
@@ -69,7 +77,7 @@ impl WrenSequenceProtocol for WrenVector2 {
 - [x] Lookup for foreign methods must take `is_static` into account.
 - [x] Generate a `ToWren` implementation for each `WrenForeignClass`. Requires lookup of class variable, and is mostly the same as `__wren_allocate`.
 - [x] Methods must handle arguments that implement `WrenForeignClass`, but are not the receiver. 
-- [ ] Implement properties
+- [x] Implement properties
 - [ ] Permit `construct` method to be omitted; generate `__wren_allocate` using `WrenForeignClass::default`
 - [ ] Store foreign method bindings in `inventory`.
 - [ ] Wren operator methods.
