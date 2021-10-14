@@ -1,6 +1,6 @@
 [package]
 name = "rust-wren"
-version = "0.14.0"
+version = "0.14.1"
 authors = ["Willem Victor <wimpievictor@gmail.com>"]
 license = "MIT OR Apache-2.0"
 edition = "2018"
@@ -18,6 +18,6 @@ rust-wren-derive = { version = "*", path = "rust-wren-derive"}
 smol_str = "0.1"
 
 [build-dependencies]
-bindgen = "0.53.1"
+bindgen = "0.59.1"
 cc = "1.0"
 glob = "0.3"

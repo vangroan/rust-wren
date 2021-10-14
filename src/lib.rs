@@ -21,6 +21,9 @@
 #[macro_use]
 extern crate lazy_static;
 
+// FIXME: bindgen uses UB in its tests
+//        Remove when this issue is fixed https://github.com/rust-lang/rust-bindgen/issues/1651
+#[allow(deref_nullptr)]
 #[allow(non_upper_case_globals)]
 #[allow(non_camel_case_types)]
 #[allow(non_snake_case)]
