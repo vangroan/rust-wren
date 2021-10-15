@@ -124,9 +124,67 @@ fn main() {
 }
 ```
 
-## Known Issues
+## Safety
 
-- Looking up a variable via `WrenContext::var_ref`, with either the module or variable not existing, ir undefined behaviour. See: https://github.com/wren-lang/wren/pull/717
+This library aims to be as safe as is reasonable for a Rust project embedding a C library.
+If usage of any function not marked as `unsafe` results in undefined behaviour, then it's a bug.
+
+However, complete safety is not possible because Wren itself is not safe. As a deliberate
+design choice of the embedding API, Wren prioritises performance and leaves safety checks
+to the embedding code.
+
+Lists can be accessed without bounds checks. Retrieving a variable does not validate whether
+the module or variable exists. The lifetimes of strings involved in certain calls are unclear.
+Sometimes this results in a SEGFAULT, but mostly the VM silently dereferences junk pointers.
+
+The following precautions have been taken in the design of this library to mitigate these issues:
+
+- Foreign classes declared in Rust but owned by Wren are wrapped in `RefCell<T>` to perform
+  borrow checking at runtime. There's nothing stopping Wren from sending the same instance
+  to a foreign function in multiple arguments.
+  
+  ```dart
+  var obj = GameObject.new()
+  Game.doBattle(obj, obj)
+  ```
+  
+  ```rust
+  #[method(name = doBattle)]
+  fn do_battle(attack: &WrenCell<GameObject>, defend: &WrenCell<GameObject>) {
+      attack.borrow_mut().unwrap();
+  
+      // If both cells refer to the same
+      // value, the second borrow will fail.
+      defend.borrow_mut().unwrap();
+  }
+  ```
+- Access to the VM's [slots](https://wren.io/embedding/slots-and-handles.html) does type- and bounds checks.
+- Handles must be released before the VM is dropped. Safe access to handles is done via the `WrenContext`
+  in a closure, which drops any created handles when the closure returns. Handles with the `'static` lifetime
+  can be created via an `unsafe` interface.
+
+## Limitations
+
+Wren is still in development, and lacks certain features in its embedding API.
+
+- There is no way to declare a module level Wren variable from Rust, or directly change the value of
+  an existing module variable. Workarounds are calling methods on classes that mutate the variable or
+  setting the fields of a `Map`.
+- Instantiating a foreign class from Wren will call the factory function supplied via `rust-wren`, then
+  call the `construct` method on the Wren side. However, creating the same class (struct) in Rust and
+  passing ownership to Wren will not call its constructor. There is no way to call a Wren constructor
+  without triggering allocation. See the [example](./examples/issue_construct.rs).
+  
+  ```rust
+  #[method(name = createInstance)]
+  fn create_instance(id: i32) -> GameObject {
+      // The `construct` method declared in Wren will not be called.
+      GameObject::new(id)
+  }
+  ```
+- Lists can insert and set elements, but there is no remove.
+- [Fixed] Looking up a variable via `WrenContext::var_ref`, with either the module or variable not existing, is
+  undefined behaviour. Fixed by : https://github.com/wren-lang/wren/pull/717
 
 ## TODO
 
