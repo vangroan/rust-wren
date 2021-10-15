@@ -15,13 +15,72 @@ Building on Windows requires Visual Studio 2019 to build the Wren C library.
 msbuild projects\vs2019\wren.vcxproj /property:Configuration="Debug 64bit" /property:Platform=x64
 ```
 
-## Notes
+## Usage
 
-Ideas for procedural macros.
+For examples on usage, see the [examples](./examples/) folder.
+
+Basic usage to interpret a script.
 
 ```rust
-#[wren_class(name="Engine")]
+use rust_wren::prelude::*;
+
+fn main() {
+    // Build a Wren VM instance
+    let mut vm = WrenBuilder::new().build();
+
+    // Script is a &str that will be copied into Wren's compiler.
+    let script = r#"
+    System.print("Hello, World")
+    "#;
+    
+    // Script must be executed as a module.
+    vm.interpret("my_module", script).expect("Interpret error");
+}
+```
+
+Call a Wren function from Rust code.
+
+```rust
+use rust_wren::prelude::*;
+
+fn main() {
+    // Build a Wren VM instance
+    let mut vm = WrenBuilder::new().build();
+
+    // Execute script to declare the class in the module.
+    vm.interpret("main", r#"
+    class Game {
+      construct new() {
+        _me = "Wren 🐦"
+      }
+      
+      greet(name) {
+        System.print("Hello, %(name)! From %(_me)")
+      }
+    }
+    
+    var game = Game.new()
+    "#).expect("Interpret error");
+    
+    // Make a call handle to call it from Rust.
+    vm.context_result(|ctx| {
+        let greet_func = ctx.make_call_ref("main", "game", "greet(_)")?;
+        
+        greet_func.call::<_, ()>(ctx, "Rust 🦀")?;
+        
+        Ok(())
+    }).expect("Context error");
+}
+```
+
+Declare a custom Wren class in Rust.
+
+```rust
+use rust_wren::prelude::*;
+
+#[wren_class(name=Engine)]
 struct WrenEngine {
+    #[get]
     version: u32,
 }
 
@@ -32,39 +91,36 @@ impl WrenEngine {
         WrenEngine { version: 1 }
     }
 
-    fn version(&self) -> WrenResult<u32> {
-        self.version
+    fn add(&self, lhs: u32, rhs: u32) -> u32 {
+        lhs + rhs
     }
 }
 
-#[wren_class(name="Vector2")]
-struct WrenVector2(nalgebra::Vector2<f64>);
-
-#[wren_methods]
-impl WrenVector {
-    #[construct]
-    fn new(x: f64, y: f64) -> Self {
-        WrenVector2(nalgebra::Vector2::new(x, y))
-    }
-
-    #[staticmethod]
-    fn zero() -> Self {
-        WrenVector2(nalgebra::Vector2::new(0.0, 0.0))
-    }
-
-    #[getter]
-    fn x(&self) -> f64 {
-        self.x
-    }
-
-    #[setter]
-    fn set_x(&self, value: f64) -> f64 {
-        self.x = value;
-    }
+const DECLARE_ENGINE: &str = r#"
+foreign class Engine {
+  construct new() {}
+  foreign version
+  foreign add(lhs, rhs)
 }
+"#;
 
-impl WrenSequenceProtocol for WrenVector2 {
-    
+fn main() {
+    let mut vm = WrenBuilder::new()
+        .with_module("main", |m| {
+            m.register::<WrenEngine>();
+        })
+        .build();
+
+    // Class must be declared in both Rust and Wren
+    vm.interpret("main", DECLARE_ENGINE).expect("Foreign class declaration");
+
+    vm.interpret("game_logic", r#"
+    import "main" for Engine
+
+    var engine = Engine.new()
+    System.print("Engine version %(engine.version)")
+    System.print("Add -> %(engine.add(30, 12))")
+    "#).expect("Game logic");
 }
 ```
 
