@@ -1,9 +1,10 @@
 //! The mandelbrot example from the Wren repository.
-use rust_wren::WrenBuilder;
+use rust_wren::prelude::*;
+
+const SCRIPT: &str = include_str!("../wren/example/mandelbrot.wren");
 
 fn main() {
     let mut vm = WrenBuilder::new().build();
 
-    vm.interpret("syntax_example", include_str!("../wren/example/mandelbrot.wren"))
-        .expect("Interpret error");
+    vm.interpret("mandelbrot", SCRIPT).expect("Interpret error");
 }
