@@ -44,6 +44,7 @@ pub mod value;
 mod vm;
 
 pub use errors::*;
+pub use types::WrenType;
 pub use vm::*;
 
 pub mod prelude {

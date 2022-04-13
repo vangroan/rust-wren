@@ -401,6 +401,7 @@ fn gen_register(wrappers: &[WrenFnSpec]) -> syn::Result<TokenStream> {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct WrenFnSpec {
     /// Identifier for method.
     ident: Ident,
