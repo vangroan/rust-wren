@@ -8,6 +8,7 @@ use crate::{
 };
 use std::{fmt, os::raw::c_int};
 
+/// Handle to a list in Wren.
 pub struct WrenList(WrenHandle);
 
 impl WrenList {
@@ -83,6 +84,30 @@ impl WrenList {
         }
 
         <Option<T> as FromWren>::get_slot(ctx, 1)
+    }
+
+    pub fn to_vec<'wren, T>(&self, ctx: &mut WrenContext) -> Result<Vec<T::Output>, WrenError>
+    where
+        T: FromWren<'wren>,
+    {
+        let mut result = vec![];
+        let mut index = 0;
+
+        ctx.ensure_slots(2);
+
+        while index < self.len(ctx) {
+            unsafe {
+                bindings::wrenSetSlotHandle(ctx.vm_ptr(), 0, self.0.raw_ptr().as_ptr());
+                bindings::wrenGetListElement(ctx.vm_ptr(), 0, index as c_int, 1);
+            }
+
+            let value = <T as FromWren>::get_slot(ctx, 1)?;
+            result.push(value);
+
+            index += 1;
+        }
+
+        Ok(result)
     }
 
     // TODO: There is no remove element in Wren API

@@ -162,6 +162,8 @@ where
     }
 }
 
+// FIXME: Move to class.rs
+// FIXME: Check if slot 0 is type UNKNOWN and print helpful error. Can be instance method call on static Rust func, or missing `foreign` on class.
 /// Needs an explicit implementation, otherwise the type checker
 /// picks `WrenForeignClass` for some reason.
 impl<'wren, T> FromWren<'wren> for &mut WrenCell<T>
