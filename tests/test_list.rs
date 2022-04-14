@@ -187,3 +187,50 @@ fn test_list_handle_push() {
     })
     .unwrap();
 }
+
+#[test]
+fn test_list_to_vec() {
+    let mut vm = WrenBuilder::new().build();
+    vm.interpret("test", include_str!("test.wren")).unwrap();
+
+    vm.interpret(
+        "test_list",
+        r#"
+        var x = ["spruce", "maple", "willow"]
+        "#,
+    )
+    .expect("Interpret error");
+
+    vm.context_result(|ctx| {
+        let wren_list = ctx.get_list("test_list", "x")?;
+        let trees = wren_list.to_vec::<String>(ctx)?;
+        assert_eq!(&trees, &["spruce", "maple", "willow"]);
+
+        Ok(())
+    })
+    .expect("Context error");
+}
+
+#[test]
+fn test_list_clone_to() {
+    let mut vm = WrenBuilder::new().build();
+    vm.interpret("test", include_str!("test.wren")).unwrap();
+
+    vm.interpret(
+        "test_list",
+        r#"
+        var x = ["spruce", "maple", "willow"]
+        "#,
+    )
+    .expect("Interpret error");
+
+    vm.context_result(|ctx| {
+        let wren_list = ctx.get_list("test_list", "x")?;
+        let mut buf: Vec<String> = vec!["".to_string(); 3];
+        wren_list.clone_to::<String>(ctx, &mut buf)?;
+        assert_eq!(&buf, &["spruce", "maple", "willow"]);
+
+        Ok(())
+    })
+    .expect("Context error");
+}

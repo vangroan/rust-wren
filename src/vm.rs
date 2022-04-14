@@ -4,7 +4,8 @@ use crate::{
     class::{WrenCell, WrenForeignClass},
     errors::{WrenCompileError, WrenError, WrenResult, WrenStackFrame, WrenVmError},
     foreign::{ForeignBindings, ForeignClass, ForeignClassKey, ForeignMethod, ForeignMethodKey},
-    handle::{FnSymbolRef, WrenCallRef, WrenRef},
+    handle::{FnSymbolRef, WrenCallRef, WrenHandle, WrenRef},
+    list::WrenList,
     module::{ModuleLoader, ModuleResolver},
     runtime, types,
     value::FromWren,
@@ -390,6 +391,9 @@ impl<'wren> WrenContext<'wren> {
         }
     }
 
+    /// Retrieves the value of a variable from the top level of module,
+    /// and returns it as a untyped handle.
+    ///
     /// # Safety
     ///
     /// Currently this is unsafe. If the module or variable do not exist, we get undefined behaviour.
@@ -422,6 +426,23 @@ impl<'wren> WrenContext<'wren> {
 
         // If the module or variable don't exist, there's junk in the slot.
         self.get_slot::<WrenRef<'wren>>(0)
+    }
+
+    /// Retrieve a list from the top level of the given module.
+    ///
+    /// # Errors
+    ///
+    /// Returns and error when:
+    ///
+    /// - Either the module or varable don't exist.
+    /// - The variable is not of type list.
+    /// - Wren returned a null pointer as the handle.
+    pub fn get_list(&self, module: &str, name: &str) -> WrenResult<WrenList> {
+        let wren_ref = self.get_var(module, name)?;
+        let wren_handle: WrenHandle = wren_ref.leak()?;
+        // FIXME: Slot type check
+        let list = unsafe { WrenList::from_handle_unchecked(wren_handle) };
+        Ok(list)
     }
 
     /// Checks whether a variable exists.

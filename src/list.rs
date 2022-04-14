@@ -12,6 +12,9 @@ use std::{fmt, os::raw::c_int};
 pub struct WrenList(WrenHandle);
 
 impl WrenList {
+    /// The type when the value is in a slot.
+    pub const WREN_TYPE: bindings::WrenType = bindings::WrenType_WREN_TYPE_LIST;
+
     /// Create a `WrenList` from a given `WrenHandle`.
     ///
     /// # Safety
@@ -39,10 +42,22 @@ impl WrenList {
     #[inline(always)]
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self, ctx: &mut WrenContext) -> usize {
+        ctx.ensure_slots(1);
         unsafe {
             bindings::wrenSetSlotHandle(ctx.vm_ptr(), 0, self.0.raw_ptr().as_ptr());
             bindings::wrenGetListCount(ctx.vm_ptr(), 0) as usize
         }
+    }
+
+    /// Get length of list without ensuring the nuber of slots.
+    ///
+    /// # Safety
+    ///
+    /// If there are not enough slots, the value will be writing the length outside
+    /// of the slots array and corrupt memory.
+    pub unsafe fn len_unchecked(&self, ctx: &mut WrenContext) -> usize {
+        bindings::wrenSetSlotHandle(ctx.vm_ptr(), 0, self.0.raw_ptr().as_ptr());
+        bindings::wrenGetListCount(ctx.vm_ptr(), 0) as usize
     }
 
     #[inline(always)]
@@ -86,28 +101,56 @@ impl WrenList {
         <Option<T> as FromWren>::get_slot(ctx, 1)
     }
 
+    /// Copies the contents of the list into a new `Vec`.
+    ///
+    /// # Errors
+    ///
+    /// Returns `WrenError` if an element in the list does not
+    /// match the type of `T::Output`.
     pub fn to_vec<'wren, T>(&self, ctx: &mut WrenContext) -> Result<Vec<T::Output>, WrenError>
     where
         T: FromWren<'wren>,
     {
         let mut result = vec![];
-        let mut index = 0;
 
         ctx.ensure_slots(2);
+        let size = unsafe { self.len_unchecked(ctx) };
 
-        while index < self.len(ctx) {
+        for index in 0..size {
             unsafe {
                 bindings::wrenSetSlotHandle(ctx.vm_ptr(), 0, self.0.raw_ptr().as_ptr());
                 bindings::wrenGetListElement(ctx.vm_ptr(), 0, index as c_int, 1);
             }
 
-            let value = <T as FromWren>::get_slot(ctx, 1)?;
-            result.push(value);
-
-            index += 1;
+            let element = <T as FromWren>::get_slot(ctx, 1)?;
+            result.push(element);
         }
 
         Ok(result)
+    }
+
+    pub fn clone_to<'wren, T>(&self, ctx: &mut WrenContext, buf: &mut [T::Output]) -> Result<(), WrenError>
+    where
+        T: FromWren<'wren>,
+    {
+        ctx.ensure_slots(2);
+        let size = unsafe { self.len_unchecked(ctx) };
+
+        if size != buf.len() {
+            return Err(WrenError::SizeMismatch);
+        }
+
+        for index in 0..size {
+            unsafe {
+                bindings::wrenSetSlotHandle(ctx.vm_ptr(), 0, self.0.raw_ptr().as_ptr());
+                bindings::wrenGetListElement(ctx.vm_ptr(), 0, index as c_int, 1);
+            }
+
+            let element = <T as FromWren>::get_slot(ctx, 1)?;
+            buf[index] = element;
+        }
+
+        Ok(())
     }
 
     // TODO: There is no remove element in Wren API
