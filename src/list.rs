@@ -129,16 +129,22 @@ impl WrenList {
         Ok(result)
     }
 
-    pub fn clone_to<'wren, T>(&self, ctx: &mut WrenContext, buf: &mut [T::Output]) -> Result<(), WrenError>
+    /// Clones the contents of the list to the given buffer.
+    ///
+    /// Returns the number of elements copied.
+    ///
+    /// # Errors
+    ///
+    /// Will abort the clone and return an error if an element in the list
+    /// cannot be converted to tyep `T`.
+    pub fn clone_to<'wren, T>(&self, ctx: &mut WrenContext, buf: &mut [T::Output]) -> Result<usize, WrenError>
     where
         T: FromWren<'wren>,
     {
         ctx.ensure_slots(2);
-        let size = unsafe { self.len_unchecked(ctx) };
-
-        if size != buf.len() {
-            return Err(WrenError::SizeMismatch);
-        }
+        let list_size = unsafe { self.len_unchecked(ctx) };
+        let buf_size = buf.len();
+        let size = ::std::cmp::min(list_size, buf_size);
 
         for index in 0..size {
             unsafe {
@@ -150,8 +156,10 @@ impl WrenList {
             buf[index] = element;
         }
 
-        Ok(())
+        Ok(size)
     }
+
+    // fn clone_from<T>(&self)
 
     // TODO: There is no remove element in Wren API
 }

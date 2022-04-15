@@ -26,7 +26,6 @@ pub enum WrenError {
     ResultQueueMismatch,
     ErrorAbsent(bindings::WrenInterpretResult),
     UserDataNull,
-    SizeMismatch,
 
     /// Error when Wren provides a pointer which is unexpectedly null.
     ///
@@ -111,7 +110,6 @@ impl ::std::fmt::Display for WrenError {
                 result_id
             ),
             WrenError::UserDataNull => write!(f, "User data pointer in VM is null"),
-            WrenError::SizeMismatch => write!(f, "List size and slie size must be equal"),
             WrenError::NullPtr => writeln!(f, "Unexpected null pointer"),
             WrenError::SlotOutOfBounds(slot) => write!(f, "Slot {} is out of bounds", slot),
             WrenError::SlotType { expected, actual } => {

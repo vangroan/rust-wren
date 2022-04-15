@@ -1,4 +1,4 @@
-use rust_wren::{handle::WrenHandle, prelude::*};
+use rust_wren::{handle::WrenHandle, prelude::*, types::WrenType, WrenError};
 
 #[wren_class]
 struct Foo;
@@ -227,8 +227,21 @@ fn test_list_clone_to() {
     vm.context_result(|ctx| {
         let wren_list = ctx.get_list("test_list", "x")?;
         let mut buf: Vec<String> = vec!["".to_string(); 3];
-        wren_list.clone_to::<String>(ctx, &mut buf)?;
+        let size = wren_list.clone_to::<String>(ctx, &mut buf)?;
         assert_eq!(&buf, &["spruce", "maple", "willow"]);
+        assert_eq!(size, 3);
+
+        // Type Error
+        let mut buf: Vec<i32> = vec![0; 3];
+        let result = wren_list.clone_to::<i32>(ctx, &mut buf);
+        assert!(result.is_err());
+        assert!(matches!(
+            result,
+            Err(WrenError::SlotType {
+                expected: WrenType::Number,
+                actual: WrenType::String
+            })
+        ));
 
         Ok(())
     })
