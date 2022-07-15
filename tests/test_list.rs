@@ -1,4 +1,4 @@
-use rust_wren::{handle::WrenHandle, prelude::*, types::WrenType, WrenError};
+use rust_wren::{handle::WrenHandle, prelude::*, types::WrenType, WrenContext, WrenError};
 
 #[wren_class]
 struct Foo;
@@ -10,31 +10,62 @@ impl Foo {
         Self
     }
 
-    // The left and right parameters are to test
-    // that the List->Vec conversion is not messing
-    // up the API slots.
-    //
-    // Function call and vec build code has to share
-    // the slots so if there's a bug they can overwrite
-    // eachother's slots.
-    fn convert(left: f64, buf: Vec<f64>, right: f64) {
+    fn convert(#[ctx] ctx: &mut WrenContext, left: f64, buf: WrenList, right: f64) {
         println!("left: {}", left);
         println!("right: {}", right);
         println!("{:?}", buf);
 
+        let converted = buf.to_vec::<f64>(ctx).expect("failed to convert Wren list to Vec<f64>");
+
         assert_eq!(left, 7.0);
         assert_eq!(right, 11.0);
-        assert_eq!(buf, vec![1., 2., 3., 4., 5., 6., 7., 8., 9., 10.]);
+        assert_eq!(converted, vec![1., 2., 3., 4., 5., 6., 7., 8., 9., 10.]);
     }
 
-    fn makelist() -> Vec<f64> {
-        vec![1., 2., 3., 4., 5., 6., 7., 8., 9., 10.]
+    fn makelist(#[ctx] ctx: &mut WrenContext) -> rust_wren::Result<WrenList> {
+        let data = vec![1., 2., 3., 4., 5., 6., 7., 8., 9., 10.];
+        WrenList::from_vec::<f64>(ctx, data).map_err(|err| foreign_error!(err))
     }
 
     fn acceptlist(list: Option<WrenList>) {
         assert!(list.is_some(), "Wren list is None");
         println!("{:?}", list);
     }
+}
+
+#[test]
+fn test_list_new() {
+    let mut vm = WrenBuilder::new().build();
+
+    vm.interpret("test", include_str!("test.wren")).unwrap();
+    vm.interpret(
+        "test_list",
+        r#"
+    import "test" for Test
+
+    class TestList {
+      static sumList(list) {
+        Test.assertEq(list[0], 7, "List element does not match")
+        Test.assertEq(list[1], 11, "List element does not match")
+        Test.assertEq(list[2], 13, "List element does not match")
+      }
+    } 
+    "#,
+    )
+    .unwrap();
+
+    vm.context_result(|ctx| {
+        let mut list = WrenList::new(ctx);
+        list.push(ctx, 7f64);
+        list.push(ctx, 11f64);
+        list.push(ctx, 13f64);
+
+        let call_ref = ctx.make_call_ref("test_list", "TestList", "sumList(_)")?;
+        call_ref.call::<_, ()>(ctx, list)?;
+
+        Ok(())
+    })
+    .unwrap();
 }
 
 #[test]

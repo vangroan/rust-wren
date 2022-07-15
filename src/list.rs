@@ -15,6 +15,16 @@ impl WrenList {
     /// The type when the value is in a slot.
     pub const WREN_TYPE: bindings::WrenType = bindings::WrenType_WREN_TYPE_LIST;
 
+    /// Create a new, empty list in the given Wren VM.
+    pub fn new(ctx: &mut WrenContext) -> Self {
+        unsafe {
+            ctx.ensure_slots(1);
+            bindings::wrenSetSlotNewList(ctx.vm_ptr(), 0);
+            let handle = WrenHandle::from_raw(bindings::wrenGetSlotHandle(ctx.vm_ptr(), 0), ctx.destructor_sender());
+            WrenList(handle)
+        }
+    }
+
     /// Create a `WrenList` from a given `WrenHandle`.
     ///
     /// # Safety
@@ -24,6 +34,52 @@ impl WrenList {
     #[doc(hidden)]
     pub unsafe fn from_handle_unchecked(handle: WrenHandle) -> Self {
         WrenList(handle)
+    }
+
+    /// Create a new list in Wren, copying the contents of the
+    /// given slice into it.
+    ///
+    /// Returns a handle to the created list.
+    pub fn from_slice<T: ToWren + Clone>(ctx: &mut WrenContext, data: &[T]) -> WrenResult<Self> {
+        // Slot for list receiver and item
+        ctx.ensure_slots(2);
+        let destructor_queue = ctx.destructor_sender();
+
+        unsafe {
+            bindings::wrenSetSlotNewList(ctx.vm_ptr(), 0);
+            let handle_ptr = bindings::wrenGetSlotHandle(ctx.vm_ptr(), 0);
+            let handle = WrenHandle::from_raw(handle_ptr, destructor_queue);
+
+            for el in data.iter() {
+                <T as ToWren>::put(el.clone(), ctx, 1);
+                bindings::wrenInsertInList(ctx.vm_ptr(), 0, -1, 1);
+            }
+
+            Ok(WrenList::from_handle_unchecked(handle))
+        }
+    }
+
+    /// Create a new list in Wren, copying the contents of the
+    /// given vector into it.
+    ///
+    /// Returns a handle to the created list.
+    pub fn from_vec<T: ToWren>(ctx: &mut WrenContext, data: Vec<T>) -> WrenResult<Self> {
+        // Slot for list receiver and item
+        ctx.ensure_slots(2);
+        let destructor_queue = ctx.destructor_sender();
+
+        unsafe {
+            bindings::wrenSetSlotNewList(ctx.vm_ptr(), 0);
+            let handle_ptr = bindings::wrenGetSlotHandle(ctx.vm_ptr(), 0);
+            let handle = WrenHandle::from_raw(handle_ptr, destructor_queue);
+
+            for el in data.into_iter() {
+                <T as ToWren>::put(el, ctx, 1);
+                bindings::wrenInsertInList(ctx.vm_ptr(), 0, -1, 1);
+            }
+
+            Ok(WrenList::from_handle_unchecked(handle))
+        }
     }
 
     pub fn push<T: ToWren>(&mut self, ctx: &mut WrenContext, item: T) {
@@ -188,87 +244,14 @@ impl<'wren> FromWren<'wren> for WrenList {
     }
 }
 
-/// Copy contents of a Wren list out of Wren and into a `Vec`.
-impl<'wren, T> FromWren<'wren> for Vec<T>
-where
-    T: FromWren<'wren>,
-{
-    type Output = Vec<T::Output>;
-
-    fn get_slot(ctx: &WrenContext, slot_num: i32) -> WrenResult<Self::Output> {
-        if ctx.slot_type(slot_num as usize) != Some(WrenType::List) {
-            return Err(WrenError::SlotType {
-                actual: ctx.slot_type(slot_num as usize).unwrap(),
-                expected: WrenType::List,
-            });
-        }
-
-        // During foreign calls, we are in the middle of extracting arguments
-        // from the slots. We can't use the lower slots to extract the list,
-        // it could erase arguments that haven't been extracted yet.
-        let slot_count = ctx.slot_count();
-        ctx.ensure_slots(slot_count + 2);
-
-        let r0 = slot_count as i32;
-        let r1 = r0 + 1;
-
-        unsafe {
-            let list_handle = bindings::wrenGetSlotHandle(ctx.vm_ptr(), slot_num);
-            let count = bindings::wrenGetListCount(ctx.vm_ptr(), slot_num);
-
-            let mut buf = Vec::<T::Output>::with_capacity(count.abs() as usize);
-
-            for i in 0..count {
-                bindings::wrenSetSlotHandle(ctx.vm_ptr(), r0, list_handle);
-                bindings::wrenGetListElement(ctx.vm_ptr(), r0, i, r1);
-                let element = T::get_slot(ctx, r1)?;
-                buf.push(element);
-            }
-
-            Ok(buf)
-        }
-    }
-}
-
 impl fmt::Debug for WrenList {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         f.debug_tuple("WrenList").field(unsafe { &self.0.raw_ptr() }).finish()
     }
 }
 
-/// Put the given `Vec<T>` in Wren.
-impl<T> ToWren for Vec<T>
-where
-    T: ToWren,
-{
+impl ToWren for WrenList {
     fn put(self, ctx: &mut WrenContext, list_slot: i32) {
-        // Put can be called while preparing arguments
-        // for a Rust call to a Wren function via a
-        // function handle.
-        //
-        // Thus we can't use the lower slots to build this
-        // new list because they are being used to setup
-        // the call.
-        //
-        // We assume `wrenEnsureSlots` has been called
-        // before with enough slots for the upcoming
-        // call, so we extend it for some scratch space
-        // to build our new list.
-        let slot_count = ctx.slot_count();
-        ctx.ensure_slots(slot_count + 1);
-
-        let elem_slot = slot_count as i32;
-
-        unsafe {
-            bindings::wrenSetSlotNewList(ctx.vm_ptr(), list_slot);
-
-            for element in self.into_iter() {
-                <T as ToWren>::put(element, ctx, elem_slot);
-
-                // Inserting into index -1 means appending to a list,
-                // according to the Wren list interface.
-                bindings::wrenInsertInList(ctx.vm_ptr(), list_slot, -1, elem_slot);
-            }
-        }
+        ToWren::put(self.0, ctx, list_slot)
     }
 }
