@@ -203,6 +203,7 @@ use std::{
 
 /// Borrowed handle to a variable that's scoped to a [`WrenVm::context`](../struct.WrenVm.html#method.context) closure.
 pub struct WrenRef<'wren> {
+    // FIXME: Use NotNull<WrenHandle> pointer
     handle: *mut bindings::WrenHandle,
     destructors: Option<Sender<*mut bindings::WrenHandle>>,
     _marker: PhantomData<&'wren bindings::WrenHandle>,
@@ -267,6 +268,7 @@ impl<'wren> FromWren<'wren> for WrenRef<'wren> {
     type Output = Self;
 
     fn get_slot(ctx: &WrenContext, slot_num: i32) -> WrenResult<Self::Output> {
+        // TODO: Null check
         let handle = unsafe { bindings::wrenGetSlotHandle(ctx.vm_ptr(), slot_num).as_mut().unwrap() };
         let destructors = ctx.destructor_sender();
         Ok(WrenRef::new(handle, destructors))

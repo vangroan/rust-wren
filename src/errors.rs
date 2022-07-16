@@ -203,6 +203,7 @@ pub struct WrenCompileError {
     pub line: i32,
 }
 
+// TODO: Rename to ForeignResult
 pub type Result<T> = ::std::result::Result<T, ForeignError>;
 
 impl<T> ToWren for self::Result<T>

@@ -39,7 +39,7 @@ pub mod handle;
 pub mod list;
 pub mod module;
 mod runtime;
-mod types;
+pub mod types;
 pub mod value;
 mod vm;
 

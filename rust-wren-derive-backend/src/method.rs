@@ -72,9 +72,10 @@ fn handle_method(cls: &Type, method: &mut ImplItemMethod) -> syn::Result<(TokenS
     // Strip attributes so we can compile.
     method.attrs.retain(|attr| !attr.path.is_ident("construct"));
 
+    // FIXME: These generation functions should operate on WrenFnSpec
     let tokens = match spec.ty {
         WrenFnType::Construct => gen_wren_construct(cls, method)?,
-        WrenFnType::Method => gen_wren_method(cls, method, spec.is_static)?,
+        WrenFnType::Method => gen_wren_method(cls, method)?,
         _ => quote! { #method },
     };
 
@@ -215,11 +216,14 @@ fn gen_wren_finalize() -> syn::Result<TokenStream> {
 }
 
 /// Generate a method AST.
-fn gen_wren_method(_cls: &Type, method: &mut ImplItemMethod, is_static: bool) -> syn::Result<TokenStream> {
+fn gen_wren_method(_cls: &Type, method: &mut ImplItemMethod) -> syn::Result<TokenStream> {
     let method_ident = method.sig.ident.clone();
 
     let ctx = format_ident!("ctx");
-    let args = gen_args_from_slots(&ctx, method, is_static)?;
+    let (vars, args) = gen_args_from_slots(&ctx, method)?;
+
+    // Cleanup attributes that the Rust compiler won't recognise.
+    method.sig.inputs.iter_mut().for_each(strip_injections);
 
     let wrap_ident = format_ident!("__wren_wrap_{}", method.sig.ident);
     let wrap = quote! {
@@ -229,6 +233,9 @@ fn gen_wren_method(_cls: &Type, method: &mut ImplItemMethod, is_static: bool) ->
             let vm: &mut rust_wren::bindings::WrenVM = unsafe { vm.as_mut().unwrap() };
             let mut ctx = rust_wren::WrenContext::new(vm);
 
+            #(#vars)*
+
+            // let result = <Self>::#method_ident(#(#args),*);
             let result = <Self>::#method_ident(#(#args),*);
 
             // Method result goes into slot 0
@@ -261,30 +268,54 @@ fn gen_wren_method(_cls: &Type, method: &mut ImplItemMethod, is_static: bool) ->
 ///
 /// Currently receivers of type `Box`, `Rc`, `Arc` and `Pin`
 /// are not supported.
-fn gen_args_from_slots(ctx: &Ident, method: &ImplItemMethod, is_static: bool) -> syn::Result<Vec<TokenStream>> {
+fn gen_args_from_slots(ctx: &Ident, method: &ImplItemMethod) -> syn::Result<(Vec<TokenStream>, Vec<TokenStream>)> {
     let method_name = method.sig.ident.to_string();
 
-    // When Wren calls a static method, the first slot will
-    // have the class as a receiver. It is of type UNKNOWN
-    // and not really usable in a Rust function for anything.
+    // Slots and Rust arguments do not line up because of arguments
+    // not coming from slots. Such as receiver and injections.
     //
-    // Since there is no argument in the Rust function
-    // corresponding to the static receiver, we need to
-    // offset the slot position by 1.
-    //
-    // An instance method would have slot 0 correspond to the
-    // Rust `self` receiver.
-    let offset = if is_static { 1 } else { 0 };
+    // We count the number of Rust function arguments that should
+    // be retrieved from Wren's slots, while excluding ineligible
+    // arguments.
+    //        
+    //              ┌ &self
+    //              │ ┌ WrenContext
+    //              │ │ ┌ GameData (some custom user data)
+    //              │ │ │ ┌ arg_1
+    //              │ │ │ │ ┌ arg_2
+    //              │ │ │ │ │ ┌ arg_3 
+    // Rust args:   0 1 2 3 4 5
+    //              │ ┌───┘ │ │
+    //              │ │ ┌───┘ │
+    //              │ | | ┌───┘
+    // Wren slots:  0 1 2 3
+    //              │ │ │ │
+    //              │ │ │ └ arg_3
+    //              │ │ └ arg_2
+    //              | └ arg_1
+    //              └ receiver
+    let mut slot_index: usize = 1;
 
-    let args = method.sig.inputs
+    // Argument identifiers to be used in the function call.
+    let mut args = vec![];
+
+    // Build a list of variable declarations that prepare
+    // the arguments before the function call.
+    let vars = method.sig.inputs
         .iter()
-        // Argument positions correlate to Wren slot positions.
-        .enumerate()
-        .map(|(idx, arg)| {
-            let idx_lit = Lit::new(Literal::i32_unsuffixed(idx as i32 + offset));
+        .map(|arg| {
+            // Dependency injection.
+            //
+            // Arguments can be values from Wren, transported via slots,
+            // or values in Rust that can come from all over the place.
+            let injections = get_injections(arg);
 
             match arg {
                 FnArg::Receiver(recv) => {
+                    let self_var = format_ident!("arg_self");
+
+                    args.push(quote! { #self_var });
+
                     // TODO: When receiver's `reference` field is None, it's
                     //       a move. The `WrenCell` should be borrowed and cloned.
                     //       The user would need an error with a nice span
@@ -312,15 +343,16 @@ fn gen_args_from_slots(ctx: &Ident, method: &ImplItemMethod, is_static: bool) ->
                     };
 
                     quote! {
-                        {
+                        let #self_var = {
                             // let ref_cell: &mut ::rust_wren::class::WrenCell<Self> = #ctx.get_slot::<Self>(#idx_lit)
                             //     .unwrap_or_else(|err| panic!("Getting slot {} for method '{}' failed: {}", #idx_lit, #method_name, err));
-                            let result = #ctx.get_slot::<Self>(#idx_lit)
+                            // Receiver is always in slot 0.
+                            let result = #ctx.get_slot::<Self>(0)
                                 .and_then(|wren_cell| wren_cell.#borrow_call())
                                 .map_err(|err| {
                                     let wren_error = rust_wren::WrenError::new_foreign_call(
                                             #method_name,
-                                            Box::new(rust_wren::WrenError::GetArg { slot: #idx_lit, cause: err.into(), })
+                                            Box::new(rust_wren::WrenError::GetArg { slot: 0, cause: err.into(), })
                                         );
 
                                     rust_wren::ForeignError::Simple(Box::new(wren_error))
@@ -338,35 +370,96 @@ fn gen_args_from_slots(ctx: &Ident, method: &ImplItemMethod, is_static: bool) ->
                             }
 
                             #borrow_return
-                        }
+                        };
                     }
                 }
                 FnArg::Typed(pat_ty) => {
-                    let arg_type = pat_ty.ty.clone();
-                    quote! {
-                        match ctx.get_slot::<#arg_type>(#idx_lit) {
-                            Ok(value) => value,
-                            Err(err) => {
-                                let wren_error = rust_wren::WrenError::new_foreign_call(
-                                        #method_name,
-                                        Box::new(rust_wren::WrenError::GetArg { slot: #idx_lit, cause: err.into(), })
-                                    );
+                    if injections.contains(&ArgInjection::Context) {
+                        // A WrenContext is already in scope, generated by `gen_wren_method`.
+                        args.push(quote! { &mut ctx });
 
-                                // `ForeignError` is our mechanism for aborting a Wren fiber
-                                // with a Rust error.
-                                let foreign_error = rust_wren::ForeignError::Simple(Box::new(wren_error));
-                                foreign_error.put(&mut ctx, 0);
+                        quote! { /* Empty */ }
+                    } else {
+                        // Argument that must be retrieved from a slot.
+                        //
+                        // Literal that can be quoted.
+                        let idx_lit = Lit::new(Literal::usize_unsuffixed(slot_index));
 
-                                return;
-                            }
+                        let arg_var = format_ident!("arg_{}", slot_index);
+                        args.push(quote! { #arg_var });
+
+                        slot_index += 1;
+
+                        let arg_type = pat_ty.ty.clone();
+
+                        quote! {
+                            let #arg_var = match ctx.get_slot::<#arg_type>(#idx_lit) {
+                                Ok(value) => value,
+                                Err(err) => {
+                                    let wren_error = rust_wren::WrenError::new_foreign_call(
+                                            #method_name,
+                                            Box::new(rust_wren::WrenError::GetArg { slot: #idx_lit, cause: err.into(), })
+                                        );
+
+                                    // `ForeignError` is our mechanism for aborting a Wren fiber
+                                    // with a Rust error.
+                                    let foreign_error = rust_wren::ForeignError::Simple(Box::new(wren_error));
+                                    foreign_error.put(&mut ctx, 0);
+
+                                    return;
+                                }
+                            };
                         }
                     }
+                    
                 }
             }
         })
         .collect();
 
-    Ok(args)
+    Ok((vars, args))
+}
+
+/// Determine which dependency injections the given
+/// function argument is annotated with.
+fn get_injections(arg: &FnArg) -> Vec<ArgInjection> {
+    let attrs = match arg {
+        FnArg::Receiver(receiver) => &receiver.attrs,
+        FnArg::Typed(pat_type) => &pat_type.attrs,
+    };
+
+    // FIXME: There should be a better way to compare identifiers without allocating.
+    let ctx_ident = format_ident!("ctx");
+
+    // Map attribute identifiers to enum variants that are
+    // easier to work with.
+    attrs.iter().filter_map(|attr| {
+        // don't format me
+        if attr.path.is_ident(&ctx_ident) {
+            Some(ArgInjection::Context)
+        } else {
+            None
+        }
+    })
+    .collect()
+}
+
+/// Removes dependency injection attributes from the given argument.
+/// 
+/// Rust compiler does not recognise our attributes, and it's our
+/// responsibility to clean them up for compilation to continue.
+fn strip_injections(arg: &mut FnArg) {
+    // FIXME: There should be a better way to compare identifiers without allocating.
+    let ctx_ident = format_ident!("ctx");
+
+    let strip = |attrs: &mut Vec<Attribute>| {
+        attrs.retain(|attr| !attr.path.is_ident(&ctx_ident));
+    };
+
+    match arg {
+        FnArg::Receiver(receiver) => strip(&mut receiver.attrs),
+        FnArg::Typed(pat_ty) => strip(&mut pat_ty.attrs),
+    }
 }
 
 fn gen_register(wrappers: &[WrenFnSpec]) -> syn::Result<TokenStream> {
@@ -482,12 +575,27 @@ impl WrenFnSpec {
     fn make_wren_signature(sig: &Signature, wren_name: Option<&Ident>) -> String {
         // Wren name can be specified using a attribute, else use Rust identifier.
         let mut sb = wren_name.unwrap_or_else(|| &sig.ident).to_string();
+
+        let ctx_ident = format_ident!("ctx");
+
         // Note that self receivers with a specified type, such as self: Box<Self>, are parsed as a FnArg::Typed.
         // https://docs.rs/syn/1.0.48/syn/enum.FnArg.html
         let args = sig
             .inputs
             .iter()
             .filter(|arg| !matches!(arg, FnArg::Receiver(_)))
+            .filter(|arg| {
+                // Filter out injections.
+                let attrs = match arg {
+                    FnArg::Receiver(receiver) => &receiver.attrs,
+                    FnArg::Typed(pat_ty) => &pat_ty.attrs,
+                };
+
+                !attrs.iter().any(|attr| {
+                    // Injectable arguments
+                    attr.path.is_ident(&ctx_ident)
+                })
+            })
             .map(|_| "_")
             .collect::<Vec<&'static str>>()
             .join(",");
@@ -582,4 +690,12 @@ impl WrenMethodArgs {
 
         Ok(())
     }
+}
+
+/// Indicates what external dependency needs to be
+/// injected into the foreign function.
+#[derive(PartialEq)]
+enum ArgInjection {
+    /// Inject the [rust_wren::WrenContext]
+    Context,
 }
