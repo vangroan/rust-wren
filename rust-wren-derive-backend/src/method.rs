@@ -277,13 +277,13 @@ fn gen_args_from_slots(ctx: &Ident, method: &ImplItemMethod) -> syn::Result<(Vec
     // We count the number of Rust function arguments that should
     // be retrieved from Wren's slots, while excluding ineligible
     // arguments.
-    //        
+    //
     //              ┌ &self
     //              │ ┌ WrenContext
     //              │ │ ┌ GameData (some custom user data)
     //              │ │ │ ┌ arg_1
     //              │ │ │ │ ┌ arg_2
-    //              │ │ │ │ │ ┌ arg_3 
+    //              │ │ │ │ │ ┌ arg_3
     // Rust args:   0 1 2 3 4 5
     //              │ ┌───┘ │ │
     //              │ │ ┌───┘ │
@@ -411,7 +411,6 @@ fn gen_args_from_slots(ctx: &Ident, method: &ImplItemMethod) -> syn::Result<(Vec
                             };
                         }
                     }
-                    
                 }
             }
         })
@@ -433,19 +432,21 @@ fn get_injections(arg: &FnArg) -> Vec<ArgInjection> {
 
     // Map attribute identifiers to enum variants that are
     // easier to work with.
-    attrs.iter().filter_map(|attr| {
-        // don't format me
-        if attr.path.is_ident(&ctx_ident) {
-            Some(ArgInjection::Context)
-        } else {
-            None
-        }
-    })
-    .collect()
+    attrs
+        .iter()
+        .filter_map(|attr| {
+            // don't format me
+            if attr.path.is_ident(&ctx_ident) {
+                Some(ArgInjection::Context)
+            } else {
+                None
+            }
+        })
+        .collect()
 }
 
 /// Removes dependency injection attributes from the given argument.
-/// 
+///
 /// Rust compiler does not recognise our attributes, and it's our
 /// responsibility to clean them up for compilation to continue.
 fn strip_injections(arg: &mut FnArg) {
