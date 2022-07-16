@@ -6,7 +6,10 @@ name: Verify
 jobs:
   check:
     name: Check
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -28,7 +31,10 @@ jobs:
   
   test:
     name: Test Suite
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -50,7 +56,10 @@ jobs:
 
   lints:
     name: Lints
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.platform }}
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
