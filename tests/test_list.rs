@@ -56,9 +56,12 @@ fn test_list_new() {
 
     vm.context_result(|ctx| {
         let mut list = WrenList::new(ctx);
-        list.push(ctx, 7f64);
-        list.push(ctx, 11f64);
-        list.push(ctx, 13f64);
+        assert!(list.is_empty(ctx));
+        list.push(ctx, 7_f64);
+        list.push(ctx, 11_f64);
+        list.push(ctx, 13_f64);
+        assert_eq!(list.len(ctx), 3);
+        assert!(!list.is_empty(ctx));
 
         let call_ref = ctx.make_call_ref("test_list", "TestList", "sumList(_)")?;
         call_ref.call::<_, ()>(ctx, list)?;

@@ -9,6 +9,9 @@ use crate::{
 use std::{fmt, os::raw::c_int};
 
 /// Handle to a list in Wren.
+///
+/// Requires the [`WrenContext`] that owns the list
+/// to perform operations on it.
 pub struct WrenList(WrenHandle);
 
 impl WrenList {
@@ -17,10 +20,13 @@ impl WrenList {
 
     /// Create a new, empty list in the given Wren VM.
     pub fn new(ctx: &mut WrenContext) -> Self {
+        ctx.ensure_slots(1);
+        let destructor_queue = ctx.destructor_sender();
+
         unsafe {
-            ctx.ensure_slots(1);
             bindings::wrenSetSlotNewList(ctx.vm_ptr(), 0);
-            let handle = WrenHandle::from_raw(bindings::wrenGetSlotHandle(ctx.vm_ptr(), 0), ctx.destructor_sender());
+            let handle_ptr = bindings::wrenGetSlotHandle(ctx.vm_ptr(), 0);
+            let handle = WrenHandle::from_raw(handle_ptr, destructor_queue);
             WrenList(handle)
         }
     }
@@ -82,10 +88,11 @@ impl WrenList {
         }
     }
 
+    /// Appends an item to the back of the collection.
     pub fn push<T: ToWren>(&mut self, ctx: &mut WrenContext, item: T) {
         // Slot for list and item
         ctx.ensure_slots(2);
-        item.put(ctx, 1);
+        ToWren::put(item, ctx, 1);
 
         unsafe {
             bindings::wrenSetSlotHandle(ctx.vm_ptr(), 0, self.0.raw_ptr().as_ptr());
@@ -105,7 +112,7 @@ impl WrenList {
         }
     }
 
-    /// Get length of list without ensuring the nuber of slots.
+    /// Get length of list without ensuring the number of slots.
     ///
     /// # Safety
     ///
@@ -129,7 +136,7 @@ impl WrenList {
 
         // Slot for list and item
         ctx.ensure_slots(2);
-        item.put(ctx, 1);
+        ToWren::put(item, ctx, 1);
 
         unsafe {
             bindings::wrenSetSlotHandle(ctx.vm_ptr(), 0, self.0.raw_ptr().as_ptr());
