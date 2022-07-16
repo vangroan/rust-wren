@@ -262,3 +262,9 @@ impl ToWren for WrenList {
         ToWren::put(self.0, ctx, list_slot)
     }
 }
+
+impl ToWren for &WrenList {
+    fn put(self, ctx: &mut WrenContext, list_slot: i32) {
+        ToWren::put(&self.0, ctx, list_slot)
+    }
+}
