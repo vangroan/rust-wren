@@ -72,8 +72,10 @@ impl Array {
     }
 
     #[method(name=setData)]
-    fn set_data(&mut self, data: Vec<f64>) {
-        self.data = data;
+    fn set_data(&mut self, #[ctx] ctx: &mut WrenContext, data: WrenList) -> rust_wren::Result<()> {
+        self.data = data.to_vec::<f64>(ctx).map_err(|err| foreign_error!(err))?;
+
+        Ok(())
     }
 
     /// Control flow.
