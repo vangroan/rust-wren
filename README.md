@@ -15,6 +15,15 @@ Building on Windows requires Visual Studio 2019 to build the Wren C library.
 msbuild projects\vs2019\wren.vcxproj /property:Configuration="Debug 64bit" /property:Platform=x64
 ```
 
+### WSL Ubuntu
+
+Install clang for bindgen.
+
+```sh
+sudo apt update
+sudo apt install clang
+```
+
 ## Usage
 
 For examples on usage, see the [examples](./examples/) folder.

@@ -12,10 +12,10 @@ pub enum WrenType {
     Unknown,
 }
 
-impl Into<bindings::WrenType> for WrenType {
+impl From<WrenType> for bindings::WrenType {
     #[rustfmt::skip]
-    fn into(self) -> bindings::WrenType {
-        match self {
+    fn from(ty: WrenType) -> Self {
+        match ty {
             WrenType::Bool    => bindings::WrenType_WREN_TYPE_BOOL,
             WrenType::Number  => bindings::WrenType_WREN_TYPE_NUM,
             WrenType::Foreign => bindings::WrenType_WREN_TYPE_FOREIGN,
