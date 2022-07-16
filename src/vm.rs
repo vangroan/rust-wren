@@ -80,7 +80,11 @@ impl WrenVm {
     ///
     /// The caller must ensure the given VM pointer is valid and not null.
     pub unsafe fn get_user_data<'a>(vm: *mut bindings::WrenVM) -> Option<&'a mut UserData> {
-        (bindings::wrenGetUserData(vm) as *mut UserData).as_mut()
+        if vm.is_null() {
+            None
+        } else {
+            (bindings::wrenGetUserData(vm) as *mut UserData).as_mut()
+        }
     }
 
     /// Given the Wren result enum, build a result or error based
@@ -90,7 +94,7 @@ impl WrenVm {
     /// queue when the given enum is either compile error or runtime
     /// error.
     #[doc(hidden)]
-    pub fn take_errors(vm: *mut bindings::WrenVM, result_id: bindings::WrenInterpretResult) -> WrenResult<()> {
+    pub(crate) fn take_errors(vm: *mut bindings::WrenVM, result_id: bindings::WrenInterpretResult) -> WrenResult<()> {
         let userdata = unsafe { WrenVm::get_user_data(vm).ok_or(WrenError::UserDataNull)? };
         let mut errors = userdata.errors.borrow_mut();
 

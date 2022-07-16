@@ -114,6 +114,22 @@ fn generate_bindings() {
         // On most platforms size_t and usize are the same.
         // Otherwise generated bindings would be either x86 or x64 specific.
         .size_t_is_usize(true)
+        // On Linux these functions return "long double" which
+        // gets converted to u128. The ABI for i128 and u128 are
+        // undefined and result in clippy warnings.
+        .blocklist_function("strtold")
+        .blocklist_function("wcstold")
+        .blocklist_function("qecvt")
+        .blocklist_function("qfcvt")
+        .blocklist_function("qgcvt")
+        .blocklist_function("ecvt_r")
+        .blocklist_function("qecvt_r")
+        .blocklist_function("qfcvt_r")
+        .blocklist_item("_Float64x")
+        .blocklist_item("__HAVE_FLOAT64X")
+        .blocklist_item("__HAVE_FLOAT64X_LONG_DOUBLE")
+        .blocklist_item("__HAVE_DISTINCT_FLOAT64X")
+        .blocklist_item("__HAVE_DISTINCT_FLOAT128X")
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.

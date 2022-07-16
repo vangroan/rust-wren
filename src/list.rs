@@ -206,20 +206,19 @@ impl WrenList {
     {
         ctx.ensure_slots(2);
         let list_size = unsafe { self.len_unchecked(ctx) };
-        let buf_size = buf.len();
-        let size = ::std::cmp::min(list_size, buf_size);
 
-        for index in 0..size {
+        for (index, item) in buf.iter_mut().enumerate().take(list_size) {
             unsafe {
                 bindings::wrenSetSlotHandle(ctx.vm_ptr(), 0, self.0.raw_ptr().as_ptr());
                 bindings::wrenGetListElement(ctx.vm_ptr(), 0, index as c_int, 1);
             }
 
             let element = <T as FromWren>::get_slot(ctx, 1)?;
-            buf[index] = element;
+            *item = element;
         }
 
-        Ok(size)
+        // Return the number of elements copied.
+        Ok(::std::cmp::min(list_size, buf.len()))
     }
 
     // fn clone_from<T>(&self)
