@@ -172,6 +172,8 @@ impl WrenVm {
 impl Drop for WrenVm {
     fn drop(&mut self) {
         if !self.vm.is_null() {
+            log::debug!("Dropping Wren VM: {:?}", self.vm);
+
             self.maintain();
 
             // Drop boxed user data
@@ -317,6 +319,7 @@ impl WrenBuilder {
             panic!("Unexpected null result when creating WrenVM via C");
         }
 
+        log::debug!("Created Wren VM: {:?}", vm);
         WrenVm { vm, handle_rx }
     }
 }

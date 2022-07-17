@@ -574,9 +574,6 @@ extern "C" {
     ) -> ::std::os::raw::c_ulonglong;
 }
 extern "C" {
-    pub fn wcstold(_String: *const wchar_t, _EndPtr: *mut *mut wchar_t) -> f64;
-}
-extern "C" {
     pub fn _wcstold_l(_String: *const wchar_t, _EndPtr: *mut *mut wchar_t, _Locale: _locale_t) -> f64;
 }
 extern "C" {
@@ -1202,9 +1199,6 @@ extern "C" {
         _EndPtr: *mut *mut ::std::os::raw::c_char,
         _Locale: _locale_t,
     ) -> f64;
-}
-extern "C" {
-    pub fn strtold(_String: *const ::std::os::raw::c_char, _EndPtr: *mut *mut ::std::os::raw::c_char) -> f64;
 }
 extern "C" {
     pub fn _strtold_l(
@@ -2025,6 +2019,9 @@ pub const WrenType_WREN_TYPE_NULL: WrenType = 5;
 pub const WrenType_WREN_TYPE_STRING: WrenType = 6;
 pub const WrenType_WREN_TYPE_UNKNOWN: WrenType = 7;
 pub type WrenType = ::std::os::raw::c_int;
+extern "C" {
+    pub fn wrenGetVersionNumber() -> ::std::os::raw::c_int;
+}
 extern "C" {
     pub fn wrenInitConfiguration(configuration: *mut WrenConfiguration);
 }
