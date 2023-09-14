@@ -19,7 +19,7 @@ pub extern "C" fn wren_reallocate(memory: *mut c_void, new_size: usize, _userdat
             } else {
                 // Allocate
                 record_alloc(
-                    alloc_zeroed(Layout::from_size_align(new_size as usize, 8).unwrap()) as *mut _,
+                    alloc_zeroed(Layout::from_size_align(new_size, 8).unwrap()) as *mut _,
                     new_size,
                     1,
                 )
@@ -39,8 +39,8 @@ pub extern "C" fn wren_reallocate(memory: *mut c_void, new_size: usize, _userdat
                 record_alloc(
                     realloc(
                         memory as *mut _,
-                        Layout::from_size_align(new_size as usize, 8).unwrap(),
-                        new_size as usize,
+                        Layout::from_size_align(new_size, 8).unwrap(),
+                        new_size,
                     ) as *mut _,
                     new_size,
                     1,
@@ -287,7 +287,7 @@ unsafe fn record_alloc(address: *mut c_void, size: usize, diff: i64) -> *mut c_v
     // Pass the address through so allocation calls
     // can be wrapped in this function.
     // In a release build this function will be inlined away.
-    return address;
+    address
 }
 
 /// Assert that all Wren's heap memory has been deallocated.
