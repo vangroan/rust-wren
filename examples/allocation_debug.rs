@@ -8,7 +8,7 @@ fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
     info!("Starting...");
 
-    // Example has to be run fro mproject root directory.
+    // Example has to be run from project root directory.
     let loader = FileModuleLoader::with_root(::std::env::current_dir().unwrap().join("examples"));
 
     let mut vm = WrenBuilder::new().with_module_loader(loader).build();
@@ -41,6 +41,18 @@ fn main() {
     import "allocation_debug"
     import "my_module" for Foobar
     var x = [1, 2, 3]
+    "#,
+    )
+    .expect("interpret failed");
+
+    // Bug where clearing an empty list leaks memory.
+    vm.interpret(
+        "main",
+        r#"
+    var y = []
+    for (i in 0...10) {
+      y.clear()
+    }
     "#,
     )
     .expect("interpret failed");

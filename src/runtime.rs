@@ -13,7 +13,7 @@ pub extern "C" fn wren_reallocate(memory: *mut c_void, new_size: usize, _userdat
         if memory.is_null() {
             if new_size == 0 {
                 // Called by Wren when an empty list is cleared.
-                // Wren assume malloc symantics where size 0 does
+                // Wren assume malloc semantics where size 0 does
                 // nothing and returns NULL.
                 ptr::null_mut()
             } else {
@@ -199,7 +199,9 @@ pub extern "C" fn load_module_complete(
     let bindings::WrenLoadModuleResult { source, .. } = result;
 
     if !source.is_null() {
-        unsafe { record_alloc(source as *mut _, 0, -1); }
+        unsafe {
+            record_alloc(source as *mut _, 0, -1);
+        }
 
         // Convert to Rust string and trigger drop.
         // `from_raw` should only ever be called with a pointer created by `into_raw`.
@@ -228,12 +230,11 @@ mod alloc_debug {
     }
 
     lazy_static! {
-        // Record of allocations, leaks and double free.
+        // Record of allocations, leaks and double frees.
         // Maps memory address to number of allocation calls.
         // The allocation count must be either 0 or 1.
         // When the count exceeds 1, it means the same address was allocated
-        // multiple times.
-        //
+        // multiple times. When it's -1 or lower, multiple frees took place.
         pub(crate) static ref ALLOCS: RwLock<HashMap<usize, AllocRecord>> = RwLock::new(HashMap::new());
     }
 }
@@ -244,7 +245,7 @@ mod alloc_debug {
 /// # Safety
 ///
 /// Doesn't do anything unsafe with the given pointer, but
-/// marked unsafe because it takes a raw poitner.
+/// marked unsafe because it takes a raw pointer.
 #[inline]
 #[allow(unused_variables)]
 unsafe fn record_alloc(address: *mut c_void, size: usize, diff: i64) -> *mut c_void {

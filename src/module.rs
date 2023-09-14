@@ -1,5 +1,4 @@
 //! Module loader and resolver.
-use log::debug;
 use std::{
     env,
     path::{Path, PathBuf},
