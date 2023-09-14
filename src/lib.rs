@@ -47,6 +47,11 @@ pub use errors::*;
 pub use types::WrenType;
 pub use vm::*;
 
+/// Tools for low level troubleshooting.
+pub mod troubleshoot {
+    pub use crate::runtime::{assert_all_deallocated, dump_allocations};
+}
+
 pub mod prelude {
     pub use crate::class::{WrenCell, WrenForeignClass};
     pub use crate::handle::WrenRef;

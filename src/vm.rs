@@ -172,6 +172,8 @@ impl WrenVm {
 impl Drop for WrenVm {
     fn drop(&mut self) {
         if !self.vm.is_null() {
+            log::debug!("Dropping Wren VM: {:?}", self.vm);
+
             self.maintain();
 
             // Drop boxed user data
@@ -204,6 +206,7 @@ impl<'wren> Drop for ContextGuard<'wren> {
 
 #[derive(Default)]
 #[must_use = "Wren VM was not build. Call build() on the builder instance."]
+#[allow(clippy::type_complexity)]
 pub struct WrenBuilder {
     foreign: ForeignBindings,
     write_fn: Option<Box<dyn Fn(&str)>>,
@@ -212,7 +215,6 @@ pub struct WrenBuilder {
 }
 
 impl WrenBuilder {
-    #[must_use = "must call build on builder to create vm"]
     pub fn new() -> WrenBuilder {
         Default::default()
     }
@@ -317,6 +319,7 @@ impl WrenBuilder {
             panic!("Unexpected null result when creating WrenVM via C");
         }
 
+        log::debug!("Created Wren VM: {:?}", vm);
         WrenVm { vm, handle_rx }
     }
 }
